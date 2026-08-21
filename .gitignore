@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+
+# Dati locali generati a runtime dall'agente
+memoria/
+skills/
+agent_log.txt
