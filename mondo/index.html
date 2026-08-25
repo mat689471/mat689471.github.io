@@ -366,7 +366,7 @@ window.ECO_CONFIG = {
     },
     apply(data){
       // boss
-      if(data.boss){boss.name=data.boss.name||boss.name;}
+      if(data.boss){boss.name=data.boss.name||boss.name;boss.task=data.boss.task||data.objective||null;}
       // agents (match per ruolo, altrimenti per id)
       const incoming=data.agents||[];
       const seen=new Set();
@@ -510,9 +510,32 @@ window.ECO_CONFIG = {
     if(a.bubble)bubble(cxp,topY-headR-20*scale,a.bubble.text,z);
   }
 
+  function drawLinks(){
+    const active = !!boss.task || workers.some(w=>w.state==="working");
+    if(!active) return;
+    const t=performance.now()/1000;
+    const bp=toScreen(iso(DAIS.gx,DAIS.gy));
+    for(const w of workers){
+      const on = w.state==="working" || (w.path&&w.path.length) || w.talk>0;
+      if(!on) continue;
+      const wp=toScreen(iso(w.gx,w.gy));
+      const y1=wp.y-16*cam.zoom, y2=bp.y-24*cam.zoom;
+      ctx.strokeStyle=w.color+"4d";ctx.lineWidth=1.6;ctx.setLineDash([4,7]);ctx.lineDashOffset=-t*30;
+      ctx.beginPath();ctx.moveTo(wp.x,y1);ctx.lineTo(bp.x,y2);ctx.stroke();ctx.setLineDash([]);
+      // impulso che "riferisce" al capo
+      const tt=(t*0.6 + w.gx*0.13)%1;
+      const px=wp.x+(bp.x-wp.x)*tt, py=y1+(y2-y1)*tt;
+      const gl=ctx.createRadialGradient(px,py,0,px,py,7*cam.zoom);gl.addColorStop(0,"#fff");gl.addColorStop(.4,w.color);gl.addColorStop(1,w.color+"00");
+      ctx.fillStyle=gl;ctx.beginPath();ctx.arc(px,py,6*cam.zoom,0,7);ctx.fill();
+    }
+    // il capo pulsa quando è attivo
+    boss.talk=Math.max(boss.talk,0.4);
+  }
+
   function render(){
     ctx.clearRect(0,0,CW,CH);
     drawFloorAndRooms();
+    drawLinks();
     const ents=[];
     for(const f of furn)ents.push({depth:f.depth,fn:f.draw});
     for(const w of workers)ents.push({depth:w.gx+w.gy+0.01,fn:()=>drawCharacter(w)});
