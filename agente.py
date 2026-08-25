@@ -9,6 +9,14 @@ Chiave API:  variabile d'ambiente ANTHROPIC_API_KEY
 L'agente riceve un obiettivo, propone ed esegue comandi PowerShell uno alla volta
 in autonomia. I comandi NON distruttivi partono subito; quelli distruttivi vengono
 mostrati e richiedono conferma [s/n] prima di essere eseguiti.
+
+Modalita' ECOSISTEMA:
+    python agente.py --mondo
+
+Passa il controllo a orchestra.py: l'ORCHESTRATORE riceve i tuoi messaggi
+dalla Sala Comando della pagina web, crea gli agenti specialisti che servono,
+li coordina e ti risponde. Le conferme dei comandi distruttivi vengono chieste
+nel mondo invece che nel terminale.
 """
 
 import io
@@ -46,10 +54,10 @@ FILE_LOG = os.path.join(BASE_DIR, "agent_log.txt")
 # mentre gira. Custodiamo il nome del file per bloccare eventuali tentativi.
 FILE_SORGENTE = os.path.basename(os.path.abspath(__file__))
 
-# Cartella del mondo "L'Ecosistema" e file coda-obiettivi scritto dalla pagina web.
-# In modalità --mondo l'agente legge da qui gli obiettivi digitati nella casella.
+# Cartella del mondo "L'Ecosistema". Con 'python agente.py --mondo' il
+# controllo passa a orchestra.py, che dialoga con la pagina web tramite i
+# file dentro questa cartella (live.json e inbox.json).
 MONDO_DIR = os.path.join(BASE_DIR, "mondo")
-FILE_OBIETTIVO = os.path.join(MONDO_DIR, "objective.json")
 
 
 # ===========================================================================
@@ -292,8 +300,18 @@ def esegui_powershell(comando):
         }
 
 
-def chiedi_conferma(motivo):
-    """Mostra il motivo e chiede conferma [s/n]. Ritorna True su 's'."""
+# Se impostato (dalla modalita' MONDO), le conferme dei comandi distruttivi
+# vengono chieste nella pagina web invece che nel terminale.
+CHIEDI_CONFERMA_HOOK = None
+
+
+def chiedi_conferma(motivo, comando=""):
+    """Mostra il motivo e chiede conferma [s/n]. Ritorna True su 's'.
+    In modalita' MONDO la richiesta viene inoltrata alla pagina web."""
+    if CHIEDI_CONFERMA_HOOK is not None:
+        print(u"  [ATTENZIONE] Comando distruttivo -> {}".format(motivo))
+        print(u"  In attesa della tua approvazione nel mondo...")
+        return bool(CHIEDI_CONFERMA_HOOK(comando, motivo))
     try:
         risposta = input(u"  [ATTENZIONE] Comando distruttivo -> {}\n  Eseguo? [s/n]: ".format(motivo))
     except (EOFError, KeyboardInterrupt):
@@ -321,7 +339,7 @@ def gestisci_esecuzione(comando):
 
     confermato = False
     if distruttivo:
-        confermato = chiedi_conferma(motivo)
+        confermato = chiedi_conferma(motivo, comando)
         if not confermato:
             print(u"   -> Saltato (nessuna conferma).")
             scrivi_log(comando, "n/a", distruttivo, confermato)
@@ -441,7 +459,7 @@ def esegui_skill(nome_file):
     confermato = False
     if distruttivo:
         print(u"\n>> La skill '{}' contiene comandi potenzialmente distruttivi.".format(nome_file))
-        confermato = chiedi_conferma(motivo)
+        confermato = chiedi_conferma(motivo, contenuto)
         if not confermato:
             print(u"   -> Skill saltata (nessuna conferma).")
             scrivi_log("SKILL:" + nome_file, "n/a", distruttivo, confermato)
@@ -579,57 +597,6 @@ def esegui_obiettivo(client, system_prompt, memoria, obiettivo):
             break
 
 
-# ---------------------------------------------------------------------------
-# Modalità MONDO: riceve gli obiettivi dalla casella della pagina web
-# ---------------------------------------------------------------------------
-
-def _leggi_id_obiettivo():
-    """Ritorna l'id dell'obiettivo corrente scritto dalla pagina, o None."""
-    try:
-        with io.open(FILE_OBIETTIVO, "r", encoding="utf-8") as f:
-            return json.load(f).get("id")
-    except (OSError, json.JSONDecodeError, ValueError):
-        return None
-
-
-def _leggi_obiettivo_nuovo(ultimo_id):
-    """Se c'è un obiettivo con id diverso da ultimo_id, ritorna (id, testo)."""
-    try:
-        with io.open(FILE_OBIETTIVO, "r", encoding="utf-8") as f:
-            dati = json.load(f)
-    except (OSError, json.JSONDecodeError, ValueError):
-        return (ultimo_id, None)
-    nid = dati.get("id")
-    if nid is not None and nid != ultimo_id:
-        return (nid, (dati.get("text") or "").strip())
-    return (ultimo_id, None)
-
-
-def esegui_watch_mondo(client, system_prompt, memoria):
-    """Ascolta gli obiettivi scritti dalla casella del mondo ed esegue.
-    La sicurezza resta invariata: i comandi distruttivi chiedono conferma qui
-    nel terminale."""
-    print(u"\n Modalità MONDO attiva: ascolto gli obiettivi dalla pagina web.")
-    print(u" Apri il mondo (node mondo/avvia.mjs) e scrivi nella casella in basso.")
-    print(u" Premi Ctrl+C per uscire.\n")
-    ultimo_id = _leggi_id_obiettivo()  # ignora un obiettivo già presente all'avvio
-    while True:
-        try:
-            ultimo_id, obiettivo = _leggi_obiettivo_nuovo(ultimo_id)
-            if obiettivo:
-                print(u"\n[dal mondo] Nuovo obiettivo: {}".format(obiettivo))
-                try:
-                    esegui_obiettivo(client, system_prompt, memoria, obiettivo)
-                except anthropic.APIError as e:
-                    print(u"[errore API] {}".format(e))
-                except Exception as e:
-                    print(u"[errore] {}".format(e))
-                print(u"\nIn attesa del prossimo obiettivo dal mondo…")
-            time.sleep(1.0)
-        except (EOFError, KeyboardInterrupt):
-            print(u"\nChiusura.")
-            break
-
 
 # ---------------------------------------------------------------------------
 # Avvio
@@ -678,7 +645,8 @@ def main():
 
     # Modalità MONDO: obiettivi presi dalla casella della pagina web.
     if "--mondo" in sys.argv or "--watch" in sys.argv:
-        esegui_watch_mondo(client, system_prompt, memoria)
+        import orchestra
+        orchestra.avvia(client, memoria)
         return
 
     while True:

@@ -10,3 +10,6 @@ agent_log.txt
 mondo/state.json
 # Obiettivi inviati dalla casella del mondo
 mondo/objective.json
+# Stato vivo e coda comandi del mondo (runtime)
+mondo/live.json
+mondo/inbox.json

@@ -36,21 +36,47 @@ const MIME = {
   ".ico": "image/x-icon", ".woff2": "font/woff2",
 };
 
+const JSONH = { "Content-Type": "application/json" };
+const INBOX = path.join(ROOT, "inbox.json");
+
+// Coda dei comandi dalla pagina: append serializzato per non perdere voci.
+let codaInbox = Promise.resolve();
+function appendInbox(voce) {
+  codaInbox = codaInbox.then(async () => {
+    let items = [];
+    try { items = JSON.parse(await readFile(INBOX, "utf8")).items || []; } catch { /* prima voce */ }
+    items.push(voce);
+    if (items.length > 200) items = items.slice(-200);
+    await writeFile(INBOX, JSON.stringify({ items }, null, 2), "utf8");
+  }).catch(() => {});
+  return codaInbox;
+}
+
 const server = http.createServer(async (req, res) => {
   try {
-    // API: la casella del mondo invia qui gli obiettivi per l'agente.
-    if (req.method === "POST" && req.url.split("?")[0] === "/api/objective") {
+    // API: la Sala Comando invia qui messaggi, approvazioni e interruttori.
+    // Tutto finisce in inbox.json, che l'Orchestratore (agente.py --mondo) legge.
+    const apiPath = req.url.split("?")[0];
+    if (req.method === "POST" && (apiPath === "/api/control" || apiPath === "/api/objective")) {
       let body = "";
-      req.on("data", (c) => { body += c; if (body.length > 100000) req.destroy(); });
+      req.on("data", (c) => { body += c; if (body.length > 200000) req.destroy(); });
       req.on("end", async () => {
         try {
-          const { text } = JSON.parse(body || "{}");
-          const clean = String(text || "").slice(0, 500).trim();
-          if (!clean) { res.writeHead(400, { "Content-Type": "application/json" }); return res.end('{"ok":false,"err":"vuoto"}'); }
-          await writeFile(path.join(ROOT, "objective.json"), JSON.stringify({ id: Date.now(), text: clean }, null, 2), "utf8");
-          console.log(`\n[mondo] nuovo obiettivo: ${clean}`);
-          res.writeHead(200, { "Content-Type": "application/json" }); res.end('{"ok":true}');
-        } catch (e) { res.writeHead(500, { "Content-Type": "application/json" }); res.end('{"ok":false}'); }
+          const p = JSON.parse(body || "{}");
+          const type = String(p.type || "message");
+          const voce = { id: Date.now(), type, ts: new Date().toISOString() };
+          if (type === "message") {
+            voce.text = String(p.text || "").slice(0, 2000).trim();
+            if (!voce.text) { res.writeHead(400, JSONH); return res.end('{"ok":false,"err":"vuoto"}'); }
+          } else if (type === "fullaccess") {
+            voce.value = !!p.value;
+          } else if (type !== "approve" && type !== "deny") {
+            res.writeHead(400, JSONH); return res.end('{"ok":false,"err":"tipo"}');
+          }
+          await appendInbox(voce);
+          console.log(`\n[mondo] ${type}${voce.text ? ": " + voce.text : ""}${voce.value !== undefined ? ": " + voce.value : ""}`);
+          res.writeHead(200, JSONH); res.end('{"ok":true}');
+        } catch (e) { res.writeHead(500, JSONH); res.end('{"ok":false}'); }
       });
       return;
     }
