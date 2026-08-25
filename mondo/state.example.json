@@ -1,0 +1,68 @@
+{
+  "_commento": "Questo è il formato che il mondo si aspetta. Il bridge di ruflo deve produrre un file 'state.json' con questa struttura. Rinomina questo file in state.json (o fallo scrivere dal bridge) per far passare il mondo ai dati reali.",
+
+  "boss": {
+    "id": "boss",
+    "name": "Orchestratore",
+    "status": "coordina"
+  },
+
+  "agents": [
+    {
+      "id": "sviluppatore",
+      "name": "Sviluppatore",
+      "role": "code",
+      "color": "#35d0d6",
+      "status": "working",
+      "task": "Refactor del modulo auth",
+      "progress": 0.62,
+      "message": null,
+      "avatarImage": null,
+      "avatarGlb": null
+    },
+    {
+      "id": "tester",
+      "name": "Tester",
+      "role": "qa",
+      "status": "idle",
+      "task": null,
+      "progress": 0,
+      "avatarImage": null,
+      "avatarGlb": null
+    },
+    {
+      "id": "architetto",
+      "name": "Architetto",
+      "role": "design",
+      "status": "delivering",
+      "task": "Diagramma dei componenti",
+      "progress": 1,
+      "avatarImage": "https://esempio.com/avatar-architetto.png",
+      "avatarGlb": "https://esempio.com/avatar-architetto.glb"
+    }
+  ],
+
+  "queue": [
+    "Scrivi i test unitari",
+    "Genera la documentazione API",
+    "Revisiona la PR #42"
+  ],
+
+  "stats": {
+    "done": 12,
+    "messages": 34
+  },
+
+  "events": [
+    { "who": "Sviluppatore", "color": "#35d0d6", "msg": "lavora su «Refactor del modulo auth»" },
+    { "who": "Architetto",   "color": "#4ce0a5", "msg": "ha completato «Diagramma dei componenti» ✓" }
+  ],
+
+  "_note_campi": {
+    "role": "uno tra: code, design, qa, research, review, docs — determina la stanza dell'agente",
+    "status": "uno tra: working, idle, delivering, talking",
+    "progress": "numero da 0 a 1 (avanzamento del task in corso)",
+    "avatarImage": "URL di un'immagine (usata come faccia dell'avatar nel mondo). Facoltativo.",
+    "avatarGlb": "URL di un modello 3D .glb (es. generato da Meshy). Mostrato nel visore 3D al click. Facoltativo."
+  }
+}
