@@ -141,8 +141,26 @@
   .kv b{color:var(--muted);font-weight:500}
   .note{font-size:12px;color:var(--faint);line-height:1.5;border-top:1px solid var(--border-soft);padding-top:10px}
 
-  .body::-webkit-scrollbar,.feed::-webkit-scrollbar,.chat::-webkit-scrollbar,.content::-webkit-scrollbar,.prev-body::-webkit-scrollbar{width:8px}
-  .body::-webkit-scrollbar-thumb,.feed::-webkit-scrollbar-thumb,.chat::-webkit-scrollbar-thumb,.content::-webkit-scrollbar-thumb,.prev-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
+  /* tabella dei lavori */
+  .sessTable{display:flex;flex-direction:column;max-height:58vh;overflow-y:auto}
+  .sessRow{display:flex;align-items:center;gap:13px;padding:13px 18px;border-bottom:1px solid var(--border-soft);transition:.15s}
+  .sessRow:last-child{border-bottom:0}
+  .sessRow:hover{background:rgba(255,255,255,.03)}
+  .sessRow.corrente{background:rgba(245,185,66,.07);box-shadow:inset 3px 0 0 var(--gold)}
+  .sessMain{flex:1;min-width:0}
+  .sessTitolo{font-size:13.5px;font-weight:500;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sessMeta{font-size:11px;color:var(--faint);margin-top:3px;display:flex;gap:9px;flex-wrap:wrap}
+  .sessRiass{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .sessAz{display:flex;gap:7px;flex:0 0 auto}
+  .sessAz .btn{padding:7px 11px;font-size:11.5px}
+  .st{font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.05em;padding:3px 8px;border-radius:999px;text-transform:uppercase;border:1px solid var(--border);color:var(--muted);white-space:nowrap}
+  .st.interrotta{color:var(--gold);border-color:rgba(245,185,66,.45);background:rgba(245,185,66,.1)}
+  .st.completata{color:var(--good);border-color:rgba(76,224,165,.4);background:rgba(76,224,165,.1)}
+  .st.corso{color:var(--cyan);border-color:rgba(53,208,214,.4);background:rgba(53,208,214,.1)}
+  #badgeSess{font-family:"JetBrains Mono",monospace;font-size:9.5px;background:var(--gold);color:#1a1204;border-radius:999px;padding:1px 6px;margin-left:2px}
+
+  .body::-webkit-scrollbar,.feed::-webkit-scrollbar,.chat::-webkit-scrollbar,.content::-webkit-scrollbar,.prev-body::-webkit-scrollbar,.sessTable::-webkit-scrollbar{width:8px}
+  .body::-webkit-scrollbar-thumb,.feed::-webkit-scrollbar-thumb,.chat::-webkit-scrollbar-thumb,.content::-webkit-scrollbar-thumb,.prev-body::-webkit-scrollbar-thumb,.sessTable::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
 
   @media (max-width:1120px){
     .shell{grid-template-columns:1fr;grid-template-rows:auto 58vh auto auto;overflow-y:auto;height:auto;min-height:100dvh}
@@ -161,6 +179,8 @@
     </div>
     <div class="controls">
       <span class="badge" id="badge"><span class="d"></span><span id="badgeText">avvio…</span></span>
+      <button class="btn ghost" id="btnSessioni">📚 Lavori <span id="badgeSess" style="display:none"></span></button>
+      <button class="btn ghost" id="btnNuova">✚ Nuovo</button>
       <a class="btn ghost" href="./gestione.html">🏛️ Quartier Generale</a>
       <button class="btn ghost" id="btnReport">📋 Resoconto</button>
       <button class="btn ghost" id="btnFull" title="Interruttore volontario: fa passare i comandi pericolosi senza chiedere, solo per questa sessione">🔓 Autorizzazione</button>
@@ -250,6 +270,17 @@
   </div>
 </div>
 
+<!-- tabella dei lavori: riprendi ciò che era rimasto in sospeso -->
+<div class="modal" id="mSess">
+  <div class="card" style="width:min(760px,95vw)">
+    <div class="top"><div><h3>I tuoi lavori</h3><div class="role">niente va perduto: riprendi da dove eri rimasto</div></div><button class="close" id="sessX">✕</button></div>
+    <div class="content" style="padding:0">
+      <div class="sessTable" id="sessBody"></div>
+    </div>
+    <div class="actions"><button class="btn" id="sessNuova">✚ Inizia un nuovo lavoro</button></div>
+  </div>
+</div>
+
 <!-- scheda agente + avatar 3D -->
 <div class="modal" id="mAgent">
   <div class="card">
@@ -286,14 +317,16 @@ window.ECO_CONFIG = {
   // ===================== MAPPA =====================
   const GW=24, GH=17;
   const ROOMS=[
-    {role:"code",     name:"Studio Sviluppo",   color:"#35d0d6", x:1,  y:1,  w:6,h:6},
-    {role:"design",   name:"Sala Architettura", color:"#9d7bff", x:9,  y:1,  w:6,h:6},
-    {role:"research", name:"Laboratorio",       color:"#ff9f6b", x:17, y:1,  w:6,h:6},
-    {role:"qa",       name:"Sala Test",         color:"#4ce0a5", x:1,  y:10, w:6,h:6},
-    {role:"review",   name:"Sala Review",       color:"#6aa8ff", x:9,  y:10, w:6,h:6},
-    {role:"docs",     name:"Archivio Docs",     color:"#ff7ac4", x:17, y:10, w:6,h:6},
+    {id:"sviluppo",     name:"Studio Sviluppo",   color:"#35d0d6", x:1,  y:1,  w:6,h:6},
+    {id:"architettura", name:"Sala Architettura", color:"#9d7bff", x:9,  y:1,  w:6,h:6},
+    {id:"laboratorio",  name:"Laboratorio",       color:"#ff9f6b", x:17, y:1,  w:6,h:6},
+    {id:"test",         name:"Sala Test",         color:"#4ce0a5", x:1,  y:10, w:6,h:6},
+    {id:"revisione",    name:"Sala Review",       color:"#6aa8ff", x:9,  y:10, w:6,h:6},
+    {id:"archivio",     name:"Archivio Docs",     color:"#ff7ac4", x:17, y:10, w:6,h:6},
   ];
-  const roomByRole=Object.fromEntries(ROOMS.map(r=>[r.role,r]));
+  const roomById=Object.fromEntries(ROOMS.map(r=>[r.id,r]));
+  // Tre postazioni per stanza: piu' agenti dello stesso reparto ci lavorano insieme.
+  const POSTI=[{dx:1.35,dy:1.7},{dx:4.05,dy:1.7},{dx:1.35,dy:4.15}];
   const DAIS={gx:11.5, gy:8};          // pedana dell'Orchestratore
   const TU={gx:11.5, gy:5.6};          // dove stai tu, nella Sala Comando
   const PLAZA={x:8.5,y:6.4,w:6,h:3.6}; // pavimento della Sala Comando
@@ -306,8 +339,11 @@ window.ECO_CONFIG = {
   const rnd=(a,b)=>a+Math.random()*(b-a);
   const clock=()=>new Date().toTimeString().slice(0,8);
   const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  const deskOf=r=>({gx:r.x+1.35, gy:r.y+1.7});
+  const deskOf=(r,slot=0)=>{const p=POSTI[slot%POSTI.length];return {gx:r.x+p.dx, gy:r.y+p.dy};};
   const gate=r=>({gx:r.x+r.w/2-0.5, gy:8});
+  // Da qui entrano i nuovi agenti: compaiono nella Sala Comando e poi
+  // raggiungono a piedi la loro stanza.
+  const ENTRATA={gx:11.5, gy:9.6};
 
   // ===================== ABITANTI =====================
   const boss={id:"boss",name:"Orchestratore",role:"boss",color:"#f5b942",kind:"boss",
@@ -321,21 +357,33 @@ window.ECO_CONFIG = {
   const allDrawn=()=>[tu,...agents.values(),boss];
   const byId=id=> id==="boss"?boss : id==="tu"?tu : agents.get(id);
 
+  /** Prima postazione libera nella stanza (fino a tre agenti per stanza). */
+  function postoLibero(room){
+    const usati=new Set([...agents.values()].filter(w=>w.room===room).map(w=>w.slot));
+    for(let i=0;i<POSTI.length;i++) if(!usati.has(i)) return i;
+    return agents.size%POSTI.length;
+  }
+
   function ensureAgent(a){
     let w=agents.get(a.id);
     if(!w){
-      const room=roomByRole[a.role]||roomByRole.code;
-      const desk=deskOf(room);
-      w={id:a.id,kind:"worker",room,desk,gx:desk.gx,gy:desk.gy,path:[],
-         state:"idle",progress:0,task:null,message:null,goal:null,
+      const room=roomById[a.room]||roomById.sviluppo;
+      const slot=postoLibero(room);
+      const desk=deskOf(room,slot);
+      // nasce all'ingresso e raggiunge la stanza a piedi
+      w={id:a.id,kind:"worker",room,slot,desk,gx:ENTRATA.gx,gy:ENTRATA.gy,path:[],
+         state:"entering",progress:0,task:null,message:null,goal:"desk",
          bob:Math.random()*6,blink:rnd(2,5),walk:0,talk:0,bubble:null,idleT:rnd(1,4),
          born:performance.now(),_img:null,avatarImage:null,avatarGlb:null};
       agents.set(a.id,w);
-      logLine(a.name||a.id, a.color||"#8a96b3", "è entrato nell'ecosistema ✦");
+      logLine(a.name||a.id, a.color||"#8a96b3", "entra nell'ecosistema ✦");
       spawnFx(w);
+      w.bubble={text:"eccomi!",ttl:2.2};
+      goTo(w,[{gx:ENTRATA.gx,gy:8.6}, gate(room), desk]);
     }
     w.name=a.name||w.name||a.id;
     w.role=a.role||w.role;
+    w.skill=a.skill||w.skill;
     w.color=a.color||w.color||"#8a96b3";
     return w;
   }
@@ -344,6 +392,7 @@ window.ECO_CONFIG = {
   const chatMsgs=[]; const feedItems=[]; const seenEvents=new Set();
   let stats={done:0,messages:0,comandi:0};
   let preview=null, report=null, pending=null, fullaccess=false, objective=null;
+  let sessioni=[], sessioneCorrente=null;
   let selected=null, speed=1, paused=false, hudAcc=0;
   const cam={x:0,y:0,zoom:1,follow:false};
   const fx=[]; // effetti: spawn, pacchetti di passaggio
@@ -387,7 +436,8 @@ window.ECO_CONFIG = {
       if(a.avatarGlb) w.avatarGlb=a.avatarGlb;
       const st=(a.status||"idle").toLowerCase();
       w.state=st;
-      if(st==="working"){ setGoal(w,"desk"); }
+      if(st==="entering"){ /* sta entrando: lascialo camminare */ }
+      else if(st==="working"||st==="waiting"){ setGoal(w,"desk"); }
       else if(st==="delivering"||st==="reporting"){ setGoal(w,"dais"); }
       else if(st==="talking"){ w.talk=1; if(a.message)w.bubble={text:a.message,ttl:2.6}; setGoal(w,"wander"); }
       else { setGoal(w,"wander"); }
@@ -444,6 +494,9 @@ window.ECO_CONFIG = {
       report=d.report; showReport(true);
     }
 
+    // archivio dei lavori
+    if(Array.isArray(d.sessioni)){ sessioni=d.sessioni; sessioneCorrente=d.sessione||null; renderSessioni(); }
+
     setMode(d.orchestratore ? "live" : "half", d._fonte);
     renderRoster(); updateStats();
   }
@@ -465,7 +518,9 @@ window.ECO_CONFIG = {
   // ===================== MOVIMENTO =====================
   function goTo(a,pts){a.path=pts.slice();}
   function setGoal(a,kind){
-    if(a.goal===kind && a.path.length) return;
+    // Una meta per volta: senza questo controllo l'agente ripartirebbe a ogni
+    // aggiornamento e resterebbe a fare avanti e indietro.
+    if(a.goal===kind) return;
     a.goal=kind;
     if(kind==="desk") goTo(a,[gate(a.room),a.desk]);
     else if(kind==="dais") goTo(a,[gate(a.room),{gx:DAIS.gx+rnd(-1.4,1.4),gy:DAIS.gy+1.3}]);
@@ -569,9 +624,25 @@ window.ECO_CONFIG = {
   function furniture(){
     const out=[];
     for(const r of ROOMS){
-      out.push({d:r.x+r.y+0.2,fn:()=>{const a=P(r.x+0.3,r.y+0.3),b=P(r.x+2.6,r.y+0.3),c=P(r.x+2.6,r.y+2.2),d=P(r.x+0.3,r.y+2.2);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.lineTo(c.x,c.y);ctx.lineTo(d.x,d.y);ctx.closePath();ctx.fillStyle=shade(r.color,-96);ctx.fill();ctx.strokeStyle=rgba(r.color,.27);ctx.lineWidth=1;ctx.stroke();}});
-      out.push({d:r.x+1.2+r.y+1.5,fn:()=>box(r.x+1.05,r.y+1.35,0.5,0.5,6,shade(r.color,-55),shade(r.color,-90),shade(r.color,-72))});
-      out.push({d:r.x+0.6+r.y+0.6,fn:()=>{box(r.x+0.5,r.y+0.5,1.6,0.9,8,shade(r.color,-40),shade(r.color,-80),shade(r.color,-60));box(r.x+0.7,r.y+0.55,0.9,0.12,16,"#0a0f1c","#070b14","#0a0f1c");const s=P(r.x+1.15,r.y+0.6);const on=[...agents.values()].some(w=>w.room===r&&w.state==="working");ctx.fillStyle=r.color;ctx.globalAlpha=on?.55+Math.abs(Math.sin(performance.now()/300))*.4:.25;ctx.fillRect(s.x-7*cam.zoom,s.y-24*cam.zoom,14*cam.zoom,9*cam.zoom);ctx.globalAlpha=1;}});
+      // una postazione completa (tappeto, scrivania, monitor, sedia) per ogni posto
+      POSTI.forEach((p,slot)=>{
+        const px=r.x+p.dx, py=r.y+p.dy;
+        out.push({d:px+py-1.2,fn:()=>{
+          const a=P(px-1.05,py-1.45),b=P(px+1.25,py-1.45),c=P(px+1.25,py+0.45),d=P(px-1.05,py+0.45);
+          ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.lineTo(c.x,c.y);ctx.lineTo(d.x,d.y);ctx.closePath();
+          ctx.fillStyle=shade(r.color,-96);ctx.fill();ctx.strokeStyle=rgba(r.color,.27);ctx.lineWidth=1;ctx.stroke();
+        }});
+        out.push({d:px+py-1.15,fn:()=>{
+          box(px-0.85,py-1.2,1.6,0.9,8,shade(r.color,-40),shade(r.color,-80),shade(r.color,-60));
+          box(px-0.65,py-1.15,0.9,0.12,16,"#0a0f1c","#070b14","#0a0f1c");
+          const s=P(px-0.2,py-1.1);
+          const on=[...agents.values()].some(w=>w.room===r&&w.slot===slot&&w.state==="working");
+          ctx.fillStyle=r.color;
+          ctx.globalAlpha=on?.55+Math.abs(Math.sin(performance.now()/300+slot))*.4:.22;
+          ctx.fillRect(s.x-7*cam.zoom,s.y-24*cam.zoom,14*cam.zoom,9*cam.zoom);ctx.globalAlpha=1;
+        }});
+        out.push({d:px+py-0.1,fn:()=>box(px-0.3,py-0.35,0.5,0.5,6,shade(r.color,-55),shade(r.color,-90),shade(r.color,-72))});
+      });
       out.push({d:r.x+r.w-1.2+r.y+0.7,fn:()=>{box(r.x+r.w-1.3,r.y+0.6,0.5,0.5,5,"#3a2a1e","#241a12","#2e2117");const s=P(r.x+r.w-1.05,r.y+0.85);ctx.fillStyle="#3fae6a";ctx.beginPath();ctx.arc(s.x,s.y-16*cam.zoom,9*cam.zoom,0,7);ctx.fill();ctx.fillStyle="#4fd07f";ctx.beginPath();ctx.arc(s.x-4*cam.zoom,s.y-21*cam.zoom,6*cam.zoom,0,7);ctx.fill();}});
     }
     return out;
@@ -839,6 +910,64 @@ window.ECO_CONFIG = {
   };
   document.getElementById("repX").onclick=()=>mReport.classList.remove("open");
 
+  // ===================== ARCHIVIO DEI LAVORI =====================
+  const mSess=document.getElementById("mSess"), sessBody=document.getElementById("sessBody");
+  const quando=iso=>{
+    if(!iso) return "";
+    const d=new Date(iso), oggi=new Date();
+    const stessoGiorno=d.toDateString()===oggi.toDateString();
+    return stessoGiorno ? "oggi "+d.toTimeString().slice(0,5)
+                        : d.toLocaleDateString("it-IT",{day:"numeric",month:"short"})+" "+d.toTimeString().slice(0,5);
+  };
+  function renderSessioni(){
+    const inter=sessioni.filter(s=>s.stato==="interrotta").length;
+    const b=document.getElementById("badgeSess");
+    b.style.display=inter?"inline-block":"none"; b.textContent=inter;
+
+    sessBody.innerHTML="";
+    if(!sessioni.length){
+      sessBody.innerHTML='<div style="padding:26px 18px;color:var(--faint);font-size:12.5px;font-style:italic;text-align:center;line-height:1.6">Nessun lavoro ancora.<br>Scrivi qualcosa nella Sala Comando: ogni conversazione diventa un lavoro salvato, che puoi riprendere anche dopo aver chiuso tutto.</div>';
+      return;
+    }
+    for(const s of sessioni){
+      const corrente=sessioneCorrente && sessioneCorrente.id===s.id;
+      const cls=s.stato==="interrotta"?"interrotta":s.stato==="completata"?"completata":"corso";
+      const el=document.createElement("div");
+      el.className="sessRow"+(corrente?" corrente":"");
+      el.innerHTML=
+        '<div class="sessMain"><div class="sessTitolo">'+esc(s.titolo)+'</div>'+
+        '<div class="sessMeta"><span class="st '+cls+'">'+esc(s.stato)+'</span>'+
+        '<span>'+quando(s.aggiornato)+'</span>'+
+        (s.lavori?'<span>'+s.lavori+' lavori</span>':'')+
+        (s.agenti&&s.agenti.length?'<span>'+esc(s.agenti.slice(0,3).join(", "))+'</span>':'')+
+        '</div>'+(s.riassunto?'<div class="sessRiass">'+esc(s.riassunto)+'</div>':'')+'</div>'+
+        '<div class="sessAz">'+
+          (corrente?'<span class="st corso">in corso</span>':'<button class="btn" data-rip="'+s.id+'">▶ Riprendi</button>')+
+          '<button class="btn ghost" data-del="'+s.id+'" title="Elimina">✕</button>'+
+        '</div>';
+      sessBody.appendChild(el);
+    }
+    sessBody.querySelectorAll("[data-rip]").forEach(b=>b.onclick=async()=>{
+      try{ await invia({type:"riprendi",id:b.dataset.rip}); mSess.classList.remove("open");
+           logLine("Tu","#f5b942","riprende un lavoro"); }
+      catch(e){ logLine("Sistema","#ff9f6b","serve l'ecosistema avviato in locale"); }
+    });
+    sessBody.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{
+      if(!confirm("Eliminare definitivamente questo lavoro dall'archivio?"))return;
+      try{ await invia({type:"elimina_sessione",id:b.dataset.del}); }catch(e){}
+    });
+  }
+  document.getElementById("btnSessioni").onclick=()=>{ renderSessioni(); mSess.classList.add("open"); };
+  document.getElementById("sessX").onclick=()=>mSess.classList.remove("open");
+  async function nuovaSessione(){
+    if(chatMsgs.length>1 && !confirm("Iniziare un nuovo lavoro? Quello attuale resta salvato nell'archivio."))return;
+    try{ await invia({type:"nuova_sessione"}); mSess.classList.remove("open");
+         chatMsgs.length=0; renderChat(); agents.clear(); renderRoster(); }
+    catch(e){ logLine("Sistema","#ff9f6b","serve l'ecosistema avviato in locale"); }
+  }
+  document.getElementById("btnNuova").onclick=nuovaSessione;
+  document.getElementById("sessNuova").onclick=nuovaSessione;
+
   // ===================== CHAT =====================
   const composer=document.getElementById("composer"), chatInput=document.getElementById("chatInput");
   composer.addEventListener("submit",async e=>{
@@ -915,8 +1044,8 @@ window.ECO_CONFIG = {
     if(!vRAF) animViewer();
   }
   document.getElementById("mClose").onclick=()=>mAgent.classList.remove("open");
-  for(const m of [mAgent,mReport,mFull]) m.addEventListener("click",e=>{if(e.target===m)m.classList.remove("open");});
-  window.addEventListener("keydown",e=>{if(e.key==="Escape"){mAgent.classList.remove("open");mReport.classList.remove("open");mFull.classList.remove("open");}});
+  for(const m of [mAgent,mReport,mFull,mSess]) m.addEventListener("click",e=>{if(e.target===m)m.classList.remove("open");});
+  window.addEventListener("keydown",e=>{if(e.key==="Escape")for(const m of [mAgent,mReport,mFull,mSess])m.classList.remove("open");});
   window.addEventListener("resize",()=>{if(mAgent.classList.contains("open"))resizeViewer();});
 
   // ===================== INPUT SCENA =====================
@@ -946,6 +1075,7 @@ window.ECO_CONFIG = {
   chatMsgs.push({id:0,from:"Sistema",role:"sys",color:"#8a96b3",ts:clock(),
     text:"Benvenuto nella Sala Comando. Scrivi qui: il messaggio va all'Orchestratore, che decide quali agenti creare e mettere al lavoro."});
   renderChat();
+  renderSessioni();
   Remote.poll();
   setInterval(()=>Remote.poll(), CFG.pollMs);
   requestAnimationFrame(frame);
