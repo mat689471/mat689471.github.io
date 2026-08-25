@@ -1,115 +1,139 @@
 /**
  * ruflo-bridge.mjs
  * -------------------------------------------------------------
- * Ponte tra ruflo (sul tuo PC) e il mondo "L'Ecosistema".
+ * Ponte tra l'attività reale sul tuo PC e il mondo "L'Ecosistema".
  *
- * Il browser NON può leggere direttamente lo stato di ruflo:
- * questo script legge lo stato reale degli agenti e scrive un file
- * `state.json` che la pagina del mondo poi legge e visualizza.
+ * Il browser NON può leggere direttamente ciò che accade sul PC:
+ * questo script legge l'attività reale e scrive un file `state.json`
+ * che la pagina del mondo poi visualizza (agenti, task, eventi).
  *
- * COME SI USA (Windows / Mac / Linux, serve Node.js 18+):
+ * COSA LEGGE ORA (dati reali del tuo agente.py):
+ *   - agent_log.txt        -> ogni comando eseguito diventa un evento reale
+ *   - memoria/memoria.json -> i "fatti" memorizzati dall'agente
+ * Entrambi sono cercati nella cartella del sito (accanto ad agente.py).
+ * Se non esistono ancora, il mondo resta collegato ma "in attesa":
+ * avvia agente.py e vedrai comparire l'attività vera in tempo reale.
  *
- *   1) Apri un terminale nella cartella del sito.
- *   2) Lancia:   node mondo/bridge/ruflo-bridge.mjs
- *   3) Apri la pagina del mondo (mondo/index.html) da un piccolo server
- *      locale, ad esempio:   npx serve .   oppure:   python -m http.server
- *      e vai su  http://localhost:3000/mondo/  (o la porta indicata).
- *
- * Il mondo, in modalità "auto", rileva state.json e passa da solo ai
- * dati reali (il badge in alto diventa verde "collegato a ruflo").
+ * COME SI USA: normalmente parte da solo tramite  mondo/avvia.mjs
+ * (doppio clic su AVVIA-WINDOWS.bat, oppure  node mondo/avvia.mjs).
  *
  * -------------------------------------------------------------
- * DA PERSONALIZZARE:
- *   La funzione leggiStatoRuflo() qui sotto è uno STUB con dati finti.
- *   Sostituiscila con la lettura reale del tuo ruflo. Le opzioni tipiche:
- *     - eseguire un comando ruflo che stampa lo stato in JSON
- *       (es. `npx ruflo status --json`) e fare il parse dell'output;
- *     - leggere un file di stato/log che ruflo/agente.py già scrivono
- *       (es. la cartella memoria/ del tuo agente.py);
- *     - interrogare il server MCP di ruflo (claude-flow).
- *   L'importante è restituire un oggetto nel formato di state.example.json.
+ * COLLEGARE ANCHE ruflo (plugin/MCP) — passo successivo:
+ *   Se in futuro ruflo espone lo stato della sua "swarm" (es. un comando
+ *   che stampa JSON, o il server MCP claude-flow), basta aggiungere qui
+ *   la lettura e unirla al risultato di leggiStato(). Il formato da
+ *   produrre è quello di state.example.json.
  *
- *   AVATAR MESHY (importante per la sicurezza):
- *   NON mettere mai la tua chiave API Meshy nella pagina web.
- *   La generazione degli avatar 3D va fatta QUI (lato "server"/PC), dove
- *   la chiave sta in una variabile d'ambiente (process.env.MESHY_API_KEY).
- *   Il bridge poi scrive solo l'URL del file .glb dentro state.json:
- *   la pagina legge l'URL, non la chiave.
+ * AVATAR MESHY (sicurezza): la chiave API Meshy NON va mai nella pagina.
+ *   La generazione avviene QUI, con la chiave in una variabile d'ambiente
+ *   (process.env.MESHY_API_KEY). Il ponte scrive solo l'URL del .glb in
+ *   state.json; la pagina legge l'URL, mai la chiave.
  * -------------------------------------------------------------
  */
 
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUTPUT = path.join(__dirname, "..", "state.json"); // -> mondo/state.json
-const INTERVALLO_MS = 2000;
+const REPO_ROOT = path.join(__dirname, "..", "..");            // dove sta agente.py
+const OUTPUT    = path.join(__dirname, "..", "state.json");    // -> mondo/state.json
+const LOG_FILE  = path.join(REPO_ROOT, "agent_log.txt");
+const MEM_FILE  = path.join(REPO_ROOT, "memoria", "memoria.json");
+const INTERVALLO_MS = 1500;
 
-// Chiave Meshy (facoltativa): impostala come variabile d'ambiente, MAI nel codice.
-//   Windows PowerShell:  $env:MESHY_API_KEY="la-tua-chiave"
-//   Mac/Linux:           export MESHY_API_KEY="la-tua-chiave"
 const MESHY_API_KEY = process.env.MESHY_API_KEY || null;
 
-// ------------------------------------------------------------------
-// STUB: sostituisci con la lettura reale dello stato di ruflo.
-// Deve restituire un oggetto nel formato di state.example.json.
-// ------------------------------------------------------------------
-let _demoTick = 0;
-async function leggiStatoRuflo() {
-  // >>> QUI colleghi ruflo davvero. <<<
-  // Esempio (da adattare): eseguire un comando e leggerne l'output JSON:
-  //
-  //   import { execFile } from "node:child_process";
-  //   const out = await new Promise((res, rej) =>
-  //     execFile("npx", ["ruflo", "status", "--json"], (e, so) => e ? rej(e) : res(so)));
-  //   return mappaVersoFormatoMondo(JSON.parse(out));
-  //
-  // Per ora restituiamo dati dimostrativi che cambiano nel tempo:
-  _demoTick++;
-  const p = (Math.sin(_demoTick / 6) + 1) / 2;
+// ---- lettura file reali ---------------------------------------------------
+function accorcia(s, n = 64) { s = (s || "").trim(); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+
+function parseRiga(l) {
+  const parts = l.split("\t");
+  if (parts.length < 2) return null;
+  const get = (k) => { const p = parts.find(x => x.startsWith(k + "=")); return p ? p.slice(k.length + 1) : null; };
+  return { ts: parts[0], rc: get("RC"), distruttivo: get("distruttivo"), confermato: get("confermato"), comando: get("comando") || "" };
+}
+
+async function leggiLog() {
+  try {
+    const txt = await readFile(LOG_FILE, "utf8");
+    return txt.split(/\r?\n/).filter(Boolean).map(parseRiga).filter(Boolean);
+  } catch { return []; }
+}
+async function leggiMemoria() {
+  try { return JSON.parse(await readFile(MEM_FILE, "utf8")); } catch { return null; }
+}
+
+// ---- costruzione dello stato per il mondo --------------------------------
+async function leggiStato() {
+  const righe = await leggiLog();
+  const memoria = await leggiMemoria();
+  const factCount = memoria && memoria.fatti ? Object.keys(memoria.fatti).length : 0;
+
+  const totale = righe.length;
+  const ok = righe.filter(r => r.rc === "0").length;
+  const now = Date.now();
+  const last = righe[righe.length - 1];
+  const lastAge = last ? (now - Date.parse(last.ts)) / 1000 : Infinity;
+  const lastErr = [...righe].reverse().find(r => r.rc && r.rc !== "0");
+  const errAge = lastErr ? (now - Date.parse(lastErr.ts)) / 1000 : Infinity;
+
+  // Sviluppatore = l'esecutore dei comandi (agente.py)
+  const sviluppatore = {
+    id: "sviluppatore", role: "code", name: "Sviluppatore",
+    status: lastAge < 8 ? "working" : "idle",
+    task: lastAge < 45 ? accorcia(last.comando) : null,
+    progress: lastAge < 8 ? Math.min(0.95, lastAge / 8) : (lastAge < 45 ? 1 : 0),
+  };
+  // Tester = reagisce agli errori (RC diverso da 0)
+  const tester = {
+    id: "tester", role: "qa", name: "Tester",
+    status: errAge < 10 ? "talking" : "idle",
+    message: errAge < 10 ? ("errore RC=" + lastErr.rc) : null,
+  };
+  // Documentatore = memoria/fatti salvati
+  const documentatore = {
+    id: "documentatore", role: "docs", name: "Documentatore",
+    status: "idle", task: factCount > 0 ? (factCount + " fatti in memoria") : null,
+  };
+
+  const events = righe.slice(-8).reverse().map(r => ({
+    who: "agente.py",
+    color: r.rc === "0" ? "#4ce0a5" : (r.rc ? "#ff9f6b" : "#8a96b3"),
+    msg: (r.rc === "0" ? "✓ " : (r.rc ? "✗ " : "")) + accorcia(r.comando) + (r.rc && r.rc !== "0" ? " (RC=" + r.rc + ")" : ""),
+  }));
+  if (totale === 0) {
+    events.push({ who: "bridge", color: "#f5b942", msg: "in attesa — avvia agente.py per vedere l'attività reale" });
+  }
+
   return {
     boss: { id: "boss", name: "Orchestratore", status: "coordina" },
-    agents: [
-      { id: "sviluppatore", name: "Sviluppatore", role: "code",     status: "working", task: "Refactor del modulo auth", progress: p },
-      { id: "tester",       name: "Tester",       role: "qa",       status: "idle",    task: null, progress: 0 },
-      { id: "architetto",   name: "Architetto",   role: "design",   status: "working", task: "Diagramma componenti", progress: (p + .4) % 1 },
-      { id: "ricercatore",  name: "Ricercatore",  role: "research", status: "talking", task: null, message: "trovato un edge case" },
-      { id: "revisore",     name: "Revisore",     role: "review",   status: "idle",    task: null, progress: 0 },
-      { id: "documentatore",name: "Documentatore",role: "docs",     status: "working", task: "Aggiorna README", progress: (p + .7) % 1 },
-    ],
-    queue: ["Scrivi i test unitari", "Configura la pipeline CI", "Ottimizza le query"],
-    stats: { done: 10 + (_demoTick % 20), messages: 25 + _demoTick },
-    events: [{ who: "bridge", color: "#4ce0a5", msg: "stato aggiornato #" + _demoTick }],
+    agents: [sviluppatore, tester, documentatore],
+    queue: [],
+    stats: { done: ok, messages: totale },
+    events,
+    _fonte: totale ? ("agent_log.txt (" + totale + " comandi, " + factCount + " fatti)") : "in attesa di attività da agente.py",
   };
 }
 
-// ------------------------------------------------------------------
-// (Facoltativo) Genera un avatar 3D con Meshy e restituisce l'URL .glb.
-// Da chiamare quando crei un nuovo agente. Esempio di scheletro:
-// ------------------------------------------------------------------
-// async function generaAvatarMeshy(descrizione) {
-//   if (!MESHY_API_KEY) return null;
-//   // 1) POST alla API Meshy (text-to-3d) con Authorization: Bearer MESHY_API_KEY
-//   // 2) attendi il completamento del task
-//   // 3) restituisci l'URL del file .glb prodotto
-//   return "https://.../avatar.glb";
-// }
+// (Facoltativo) generazione avatar Meshy — da completare quando crei un agente.
+// async function generaAvatarMeshy(descrizione){ if(!MESHY_API_KEY) return null; /* POST text-to-3d, attendi, ritorna URL .glb */ }
 
 async function ciclo() {
   try {
-    const stato = await leggiStatoRuflo();
+    const stato = await leggiStato();
     stato._generatoIl = new Date().toISOString();
     await writeFile(OUTPUT, JSON.stringify(stato, null, 2), "utf8");
-    process.stdout.write(`\r[${new Date().toLocaleTimeString()}] state.json aggiornato  `);
+    process.stdout.write(`\r[${new Date().toLocaleTimeString()}] ${stato._fonte}      `);
   } catch (e) {
-    console.error("\nErrore nell'aggiornamento:", e.message);
+    console.error("\nErrore:", e.message);
   }
 }
 
 console.log("ruflo-bridge avviato.");
+console.log("Leggo l'attività da:", LOG_FILE);
 console.log("Scrivo lo stato in:", OUTPUT);
-console.log("Meshy:", MESHY_API_KEY ? "chiave rilevata ✓" : "nessuna chiave (avatar 3D disabilitati)");
-console.log("Premi Ctrl+C per fermare.\n");
+console.log("Meshy:", MESHY_API_KEY ? "chiave rilevata ✓" : "nessuna chiave (avatar 3D segnaposto)");
+console.log("");
 await ciclo();
 setInterval(ciclo, INTERVALLO_MS);
