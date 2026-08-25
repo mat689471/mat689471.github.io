@@ -40,7 +40,11 @@ const REPO_ROOT = path.join(__dirname, "..", "..");            // dove sta agent
 const OUTPUT    = path.join(__dirname, "..", "state.json");    // -> mondo/state.json
 const LOG_FILE  = path.join(REPO_ROOT, "agent_log.txt");
 const MEM_FILE  = path.join(REPO_ROOT, "memoria", "memoria.json");
+const OBJ_FILE  = path.join(__dirname, "..", "objective.json"); // scritto dalla casella del mondo
 const INTERVALLO_MS = 1500;
+
+let ultimoObjId = null;
+let ultimoObjText = null;
 
 const MESHY_API_KEY = process.env.MESHY_API_KEY || null;
 
@@ -65,9 +69,18 @@ async function leggiMemoria() {
 }
 
 // ---- costruzione dello stato per il mondo --------------------------------
+async function leggiObiettivo() {
+  try {
+    const obj = JSON.parse(await readFile(OBJ_FILE, "utf8"));
+    if (obj && obj.id && obj.id !== ultimoObjId) { ultimoObjId = obj.id; ultimoObjText = obj.text || null; return obj.text || null; }
+  } catch { /* nessun obiettivo */ }
+  return null;
+}
+
 async function leggiStato() {
   const righe = await leggiLog();
   const memoria = await leggiMemoria();
+  const nuovoObj = await leggiObiettivo();
   const factCount = memoria && memoria.fatti ? Object.keys(memoria.fatti).length : 0;
 
   const totale = righe.length;
@@ -97,17 +110,22 @@ async function leggiStato() {
     status: "idle", task: factCount > 0 ? (factCount + " fatti in memoria") : null,
   };
 
-  const events = righe.slice(-8).reverse().map(r => ({
+  const events = righe.slice(-8).reverse().map((r, i) => ({
+    ts: r.ts + "#" + (totale - i),
     who: "agente.py",
     color: r.rc === "0" ? "#4ce0a5" : (r.rc ? "#ff9f6b" : "#8a96b3"),
     msg: (r.rc === "0" ? "✓ " : (r.rc ? "✗ " : "")) + accorcia(r.comando) + (r.rc && r.rc !== "0" ? " (RC=" + r.rc + ")" : ""),
   }));
-  if (totale === 0) {
-    events.push({ who: "bridge", color: "#f5b942", msg: "in attesa — avvia agente.py per vedere l'attività reale" });
+  if (nuovoObj) {
+    events.unshift({ ts: "obj:" + ultimoObjId, who: "Tu", color: "#f5b942", msg: "🎯 obiettivo: " + accorcia(nuovoObj, 80) });
+  }
+  if (totale === 0 && !ultimoObjText) {
+    events.push({ ts: "waiting", who: "bridge", color: "#f5b942", msg: "in attesa — scrivi un obiettivo o avvia agente.py --mondo" });
   }
 
   return {
-    boss: { id: "boss", name: "Orchestratore", status: "coordina" },
+    boss: { id: "boss", name: "Orchestratore", status: "coordina", task: ultimoObjText },
+    objective: ultimoObjText,
     agents: [sviluppatore, tester, documentatore],
     queue: [],
     stats: { done: ok, messages: totale },

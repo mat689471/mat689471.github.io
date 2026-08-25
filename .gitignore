@@ -8,3 +8,5 @@ agent_log.txt
 
 # Stato del mondo generato a runtime dal ponte
 mondo/state.json
+# Obiettivi inviati dalla casella del mondo
+mondo/objective.json

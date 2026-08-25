@@ -15,7 +15,7 @@
  */
 
 import http from "node:http";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { exec } from "node:child_process";
@@ -38,6 +38,23 @@ const MIME = {
 
 const server = http.createServer(async (req, res) => {
   try {
+    // API: la casella del mondo invia qui gli obiettivi per l'agente.
+    if (req.method === "POST" && req.url.split("?")[0] === "/api/objective") {
+      let body = "";
+      req.on("data", (c) => { body += c; if (body.length > 100000) req.destroy(); });
+      req.on("end", async () => {
+        try {
+          const { text } = JSON.parse(body || "{}");
+          const clean = String(text || "").slice(0, 500).trim();
+          if (!clean) { res.writeHead(400, { "Content-Type": "application/json" }); return res.end('{"ok":false,"err":"vuoto"}'); }
+          await writeFile(path.join(ROOT, "objective.json"), JSON.stringify({ id: Date.now(), text: clean }, null, 2), "utf8");
+          console.log(`\n[mondo] nuovo obiettivo: ${clean}`);
+          res.writeHead(200, { "Content-Type": "application/json" }); res.end('{"ok":true}');
+        } catch (e) { res.writeHead(500, { "Content-Type": "application/json" }); res.end('{"ok":false}'); }
+      });
+      return;
+    }
+
     let urlPath = decodeURIComponent(req.url.split("?")[0]);
     if (urlPath === "/") urlPath = "/index.html";
     // impedisci di uscire dalla cartella

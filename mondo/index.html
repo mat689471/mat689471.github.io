@@ -88,6 +88,13 @@
   .legend div{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)}
   .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
 
+  .objbar{position:absolute;left:50%;top:12px;transform:translateX(-50%);max-width:70%;background:rgba(245,185,66,.14);border:1px solid rgba(245,185,66,.45);color:var(--gold);font-family:"Chakra Petch",monospace;font-size:12px;padding:7px 15px;border-radius:999px;backdrop-filter:blur(4px);display:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:5}
+  .objbar.show{display:block}
+  .cmdbar{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:flex;gap:8px;width:min(600px,88%);background:rgba(7,10,17,.72);border:1px solid var(--border);border-radius:12px;padding:7px;backdrop-filter:blur(6px);z-index:5}
+  .cmdbar input{flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--border-soft);border-radius:8px;color:var(--ink);font-family:"Sora",sans-serif;font-size:13px;padding:10px 13px;outline:none}
+  .cmdbar input:focus{border-color:var(--gold)}
+  .cmdbar .btn{padding:10px 15px;white-space:nowrap}
+
   .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 12px 4px}
   .stat{border:1px solid var(--border-soft);border-radius:11px;padding:9px 11px;background:var(--panel-2)}
   .stat .n{font-family:"Chakra Petch",monospace;font-size:21px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
@@ -161,7 +168,12 @@
       <div><i style="background:var(--cyan)"></i> In movimento</div>
       <div><i style="background:var(--rose)"></i> Dialogo</div>
     </div>
+    <div class="objbar" id="objbar"></div>
     <div class="hint" id="hint">Trascina per spostarti · rotella per zoom · clicca un agente per l'avatar 3D</div>
+    <form class="cmdbar" id="cmdbar">
+      <input id="cmdInput" type="text" maxlength="500" autocomplete="off" placeholder="Comanda l'ecosistema: scrivi un obiettivo e premi Invio…">
+      <button class="btn" type="submit">▶ Invia</button>
+    </form>
   </div>
 
   <div class="panel">
@@ -343,6 +355,7 @@ window.ECO_CONFIG = {
   // --- REMOTE: legge lo stato reale da ruflo (via bridge) ---
   const Remote={
     lastOk:0,
+    seen:new Set(),
     async poll(){
       try{
         const res=await fetch(CFG.endpoint+(CFG.endpoint.includes("?")?"&":"?")+"t="+Date.now(),{cache:"no-store"});
@@ -378,7 +391,8 @@ window.ECO_CONFIG = {
       // queue / stats / events from real data
       if(Array.isArray(data.queue)){queue.length=0;data.queue.forEach(t=>queue.push(typeof t==="string"?t:t.title||""));renderQueue();}
       if(data.stats){if(typeof data.stats.done==="number")done=data.stats.done;if(typeof data.stats.messages==="number")msgs=data.stats.messages;}
-      if(Array.isArray(data.events)){data.events.slice(0,8).reverse().forEach(ev=>{if(!ev.__seen){ev.__seen=1;log(ev.who||"ruflo",ev.color||"#8a96b3",ev.msg||"");}});}
+      if(Array.isArray(data.events)){data.events.slice(0,8).reverse().forEach(ev=>{const key=(ev.ts||"")+"|"+(ev.msg||"");if(!this.seen.has(key)){this.seen.add(key);log(ev.who||"ruflo",ev.color||"#8a96b3",ev.msg||"");}});if(this.seen.size>400)this.seen=new Set();}
+      setObjective(data.objective);
       renderRoster();
     },
     update(dt){ for(const w of workers) stepMove(w,dt); }
@@ -622,6 +636,24 @@ window.ECO_CONFIG = {
   document.querySelectorAll(".seg button").forEach(b=>{b.onclick=()=>{document.querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");speed=parseFloat(b.dataset.speed);};});
   const pauseBtn=document.getElementById("pause");pauseBtn.onclick=()=>{paused=!paused;pauseBtn.textContent=paused?"▶ Riprendi":"⏸ Pausa";};
   document.getElementById("addTask").onclick=()=>{const t=pick(TASKS);queue.unshift(t);renderQueue();log("Tu","#e9edf8",'nuovo task in coda: «'+t+'»');};
+
+  // ---- casella comando: invia un obiettivo all'agente ----
+  const objbar=document.getElementById("objbar");
+  function setObjective(t){if(t){objbar.textContent="🎯 "+t;objbar.classList.add("show");}else{objbar.classList.remove("show");}}
+  const cmdbar=document.getElementById("cmdbar"),cmdInput=document.getElementById("cmdInput");
+  cmdbar.addEventListener("submit",async(e)=>{
+    e.preventDefault();
+    const text=cmdInput.value.trim();if(!text)return;
+    cmdInput.value="";log("Tu","#f5b942","🎯 "+text);setObjective(text);
+    try{
+      const r=await fetch("/api/objective",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
+      if(!r.ok)throw new Error("http "+r.status);
+      log("Sistema","#4ce0a5","obiettivo inviato all'agente ✓");
+    }catch(err){
+      log("Sistema","#ff9f6b","per comandare l'agente serve l'avvio locale (node avvia.mjs). In demo l'ho messo in coda.");
+      queue.unshift(text);renderQueue();
+    }
+  });
 
   // ========================================================
   // RESIZE / LOOP / BOOT

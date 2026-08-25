@@ -16,6 +16,7 @@ import os
 import re
 import sys
 import json
+import time
 import subprocess
 from datetime import datetime
 
@@ -44,6 +45,11 @@ FILE_LOG = os.path.join(BASE_DIR, "agent_log.txt")
 # Vincolo di stabilità: l'agente non deve mai riscrivere il proprio sorgente
 # mentre gira. Custodiamo il nome del file per bloccare eventuali tentativi.
 FILE_SORGENTE = os.path.basename(os.path.abspath(__file__))
+
+# Cartella del mondo "L'Ecosistema" e file coda-obiettivi scritto dalla pagina web.
+# In modalità --mondo l'agente legge da qui gli obiettivi digitati nella casella.
+MONDO_DIR = os.path.join(BASE_DIR, "mondo")
+FILE_OBIETTIVO = os.path.join(MONDO_DIR, "objective.json")
 
 
 # ===========================================================================
@@ -83,6 +89,23 @@ _PATTERN_DISTRUTTIVI = [
 _REGEX_DISTRUTTIVI = [(re.compile(p, re.IGNORECASE), etichetta)
                       for p, etichetta in _PATTERN_DISTRUTTIVI]
 
+# ---------------------------------------------------------------------------
+# Comandi FIDATI: prefissi considerati SEMPRE sicuri. Se un comando inizia con
+# uno di questi (spazi iniziali ignorati), viene eseguito senza mai chiedere
+# conferma, anche se contenesse flag che altrimenti sembrerebbero rischiosi
+# (es. Get-ChildItem -Recurse, di sola lettura). Aggiungi qui i comandi che
+# usi spesso e di cui ti fidi. NON mettere qui comandi che cancellano/formattano.
+# ---------------------------------------------------------------------------
+COMANDI_FIDATI = [
+    r"Get-\w+",                                   # tutti i Get-* (sola lettura)
+    r"dir\b", r"ls\b", r"pwd\b", r"cd\b",
+    r"echo\b", r"cat\b", r"type\b", r"more\b",
+    r"python\b", r"pip\b", r"node\b", r"npm\b", r"git\b",
+    r"Test-\w+", r"Measure-\w+", r"Select-\w+", r"Where-\w+", r"Sort-\w+",
+    r"Write-Output\b", r"Write-Host\b", r"Out-\w+",
+]
+_REGEX_FIDATI = [re.compile(r"^\s*" + p, re.IGNORECASE) for p in COMANDI_FIDATI]
+
 
 def classifica_comando(comando):
     """
@@ -96,6 +119,11 @@ def classifica_comando(comando):
     """
     if not comando or not comando.strip():
         return (False, None)
+
+    # Comandi fidati: passano senza chiedere nulla.
+    for regex in _REGEX_FIDATI:
+        if regex.search(comando):
+            return (False, None)
 
     for regex, etichetta in _REGEX_DISTRUTTIVI:
         if regex.search(comando):
@@ -552,6 +580,58 @@ def esegui_obiettivo(client, system_prompt, memoria, obiettivo):
 
 
 # ---------------------------------------------------------------------------
+# Modalità MONDO: riceve gli obiettivi dalla casella della pagina web
+# ---------------------------------------------------------------------------
+
+def _leggi_id_obiettivo():
+    """Ritorna l'id dell'obiettivo corrente scritto dalla pagina, o None."""
+    try:
+        with io.open(FILE_OBIETTIVO, "r", encoding="utf-8") as f:
+            return json.load(f).get("id")
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+
+
+def _leggi_obiettivo_nuovo(ultimo_id):
+    """Se c'è un obiettivo con id diverso da ultimo_id, ritorna (id, testo)."""
+    try:
+        with io.open(FILE_OBIETTIVO, "r", encoding="utf-8") as f:
+            dati = json.load(f)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return (ultimo_id, None)
+    nid = dati.get("id")
+    if nid is not None and nid != ultimo_id:
+        return (nid, (dati.get("text") or "").strip())
+    return (ultimo_id, None)
+
+
+def esegui_watch_mondo(client, system_prompt, memoria):
+    """Ascolta gli obiettivi scritti dalla casella del mondo ed esegue.
+    La sicurezza resta invariata: i comandi distruttivi chiedono conferma qui
+    nel terminale."""
+    print(u"\n Modalità MONDO attiva: ascolto gli obiettivi dalla pagina web.")
+    print(u" Apri il mondo (node mondo/avvia.mjs) e scrivi nella casella in basso.")
+    print(u" Premi Ctrl+C per uscire.\n")
+    ultimo_id = _leggi_id_obiettivo()  # ignora un obiettivo già presente all'avvio
+    while True:
+        try:
+            ultimo_id, obiettivo = _leggi_obiettivo_nuovo(ultimo_id)
+            if obiettivo:
+                print(u"\n[dal mondo] Nuovo obiettivo: {}".format(obiettivo))
+                try:
+                    esegui_obiettivo(client, system_prompt, memoria, obiettivo)
+                except anthropic.APIError as e:
+                    print(u"[errore API] {}".format(e))
+                except Exception as e:
+                    print(u"[errore] {}".format(e))
+                print(u"\nIn attesa del prossimo obiettivo dal mondo…")
+            time.sleep(1.0)
+        except (EOFError, KeyboardInterrupt):
+            print(u"\nChiusura.")
+            break
+
+
+# ---------------------------------------------------------------------------
 # Avvio
 # ---------------------------------------------------------------------------
 
@@ -589,10 +669,17 @@ def main():
 
     print(u"\n AVVISO: eseguo tutti i comandi da solo, tranne quelli DISTRUTTIVI,")
     print(u"         per i quali chiedo la tua conferma [s/n] prima di procedere.")
+    print(u"         (i comandi FIDATI partono sempre senza chiedere).")
     print(u" Scrivi il tuo obiettivo. Scrivi 'stop' per uscire.")
+    print(u" Suggerimento: 'python agente.py --mondo' per comandarlo dal mondo web.")
     print(u"=" * 64)
 
     system_prompt = costruisci_system_prompt(memoria, skills)
+
+    # Modalità MONDO: obiettivi presi dalla casella della pagina web.
+    if "--mondo" in sys.argv or "--watch" in sys.argv:
+        esegui_watch_mondo(client, system_prompt, memoria)
+        return
 
     while True:
         try:
