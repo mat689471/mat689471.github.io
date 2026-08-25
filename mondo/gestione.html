@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Quartier Generale · Ruflo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Cassaforte delle chiavi, incassi Stripe e PayPal, progetti con statistiche e contabilità.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Sora:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#070a11; --surface:#0c1220; --panel:#101827; --border:#1c2740; --border-soft:#151f36;
+    --ink:#e9edf8; --muted:#8a96b3; --faint:#59647f;
+    --gold:#f5b942; --violet:#9d7bff; --cyan:#35d0d6;
+    /* serie del grafico — validate su questa superficie scura */
+    --entrate:#199e70; --uscite:#d95926;
+    --good:#4ce0a5; --warn:#eda100; --danger:#ff6b6b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Sora",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;min-height:100dvh}
+  .wrap{max-width:1180px;margin:0 auto;padding:18px 18px 60px}
+
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:14px 18px;background:linear-gradient(180deg,rgba(20,30,52,.7),rgba(12,18,32,.7));border:1px solid var(--border);border-radius:16px;margin-bottom:14px}
+  .eyebrow{font-family:"Chakra Petch",monospace;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--gold);display:flex;align-items:center;gap:9px}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px var(--gold)}
+  h1{font-family:"Chakra Petch",monospace;font-weight:700;font-size:clamp(22px,3vw,32px);line-height:1.05;margin-top:3px}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:4px;max-width:60ch;line-height:1.5}
+  .hactions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+
+  .tabs{display:flex;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:5px;margin-bottom:14px;flex-wrap:wrap}
+  .tabs button{flex:1;min-width:120px;font-family:"Chakra Petch",monospace;font-size:13px;letter-spacing:.03em;background:transparent;border:0;color:var(--muted);padding:10px 12px;border-radius:9px;cursor:pointer;transition:.15s}
+  .tabs button:hover{color:var(--ink)}
+  .tabs button[aria-selected="true"]{background:rgba(245,185,66,.15);color:var(--gold)}
+
+  .card{background:linear-gradient(180deg,rgba(16,23,40,.9),rgba(10,15,28,.92));border:1px solid var(--border);border-radius:16px;margin-bottom:14px;overflow:hidden}
+  .card > h2{font-family:"Chakra Petch",monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--faint);padding:15px 18px 11px;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .card .in{padding:16px 18px}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+
+  label{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}
+  input,select,textarea{width:100%;background:var(--surface);border:1px solid var(--border-soft);border-radius:9px;color:var(--ink);font-family:"Sora",sans-serif;font-size:13px;padding:10px 12px;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--gold)}
+  input.mono{font-family:"JetBrains Mono",monospace;font-size:12px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .row > div{flex:1;min-width:140px}
+  .btn{font-family:"Chakra Petch",monospace;font-size:12.5px;letter-spacing:.04em;display:inline-flex;align-items:center;gap:7px;padding:10px 15px;border-radius:10px;cursor:pointer;border:1px solid rgba(245,185,66,.4);background:linear-gradient(180deg,rgba(245,185,66,.22),rgba(245,185,66,.08));color:var(--gold);white-space:nowrap;transition:.15s}
+  .btn:hover{border-color:var(--gold)}
+  .btn:active{transform:translateY(1px)}
+  .btn.ghost{border-color:var(--border);background:var(--surface);color:var(--muted)}
+  .btn.ghost:hover{color:var(--ink);border-color:var(--faint)}
+  .btn.small{padding:6px 10px;font-size:11.5px}
+  .btn.danger{border-color:rgba(255,107,107,.45);background:rgba(255,107,107,.12);color:#ffb3b3}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
+  .nota{font-size:12.5px;line-height:1.6;color:var(--muted)}
+  .nota b{color:var(--ink);font-weight:500}
+  .avviso{display:flex;gap:10px;align-items:flex-start;border-radius:11px;padding:11px 13px;font-size:12.5px;line-height:1.55;margin-bottom:12px}
+  .avviso .ic{flex:0 0 auto;font-size:15px;line-height:1.2}
+  .avviso.alto{background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.4);color:#ffd0d0}
+  .avviso.medio{background:rgba(237,161,0,.1);border:1px solid rgba(237,161,0,.4);color:#ffe4ac}
+  .avviso.ok{background:rgba(25,158,112,.12);border:1px solid rgba(25,158,112,.45);color:#a9e8cd}
+  .avviso.info{background:rgba(53,208,214,.09);border:1px solid rgba(53,208,214,.3);color:#bfeef0}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:400;padding:9px 10px;border-bottom:1px solid var(--border-soft)}
+  td{padding:10px;border-bottom:1px solid var(--border-soft);color:var(--muted);vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+  td.name{color:var(--ink);font-weight:500}
+  td.num{text-align:right;font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .mask{font-family:"JetBrains Mono",monospace;color:var(--muted);letter-spacing:.02em}
+  .chip{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}
+  .chip.pag{color:var(--gold);border-color:rgba(245,185,66,.4);background:rgba(245,185,66,.1)}
+  .chip.api{color:var(--violet);border-color:rgba(157,123,255,.4);background:rgba(157,123,255,.1)}
+  .chip.attivo{color:var(--good);border-color:rgba(76,224,165,.4);background:rgba(76,224,165,.1)}
+  .chip.consegnato{color:var(--cyan);border-color:rgba(53,208,214,.35);background:rgba(53,208,214,.1)}
+  .chip.sospeso{color:var(--faint)}
+  .pos{color:var(--good)} .neg{color:var(--uscite)}
+  .tw{overflow-x:auto}
+  .vuoto{color:var(--faint);font-size:12.5px;font-style:italic;padding:18px 2px;line-height:1.6;text-align:center}
+
+  /* tessere statistiche */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px;margin-bottom:16px}
+  .tile{border:1px solid var(--border-soft);border-radius:13px;padding:13px 14px;background:var(--surface)}
+  .tile .l{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--faint)}
+  .tile .v{font-family:"Chakra Petch",monospace;font-size:25px;font-weight:600;line-height:1.1;margin-top:6px;font-variant-numeric:tabular-nums}
+  .tile .s{font-size:11px;color:var(--faint);margin-top:3px}
+
+  /* grafico */
+  .chart-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+  .legend{display:flex;gap:16px;font-size:12px;color:var(--muted)}
+  .legend span{display:flex;align-items:center;gap:7px}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .chart-wrap{position:relative;overflow-x:auto}
+  svg.chart{display:block;width:100%;min-width:520px;height:230px}
+  .tip{position:absolute;pointer-events:none;background:rgba(8,13,24,.97);border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--ink);white-space:nowrap;opacity:0;transition:opacity .12s;box-shadow:0 10px 30px rgba(0,0,0,.5);z-index:5}
+  .tip .r{display:flex;align-items:center;gap:8px;margin-top:5px;font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+  .tip .r i{width:9px;height:9px;border-radius:2px}
+  .tip .t{font-family:"Chakra Petch",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+
+  .proj{border:1px solid var(--border-soft);border-radius:13px;padding:14px;background:var(--surface);margin-bottom:11px}
+  .proj-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+  .proj h3{font-family:"Chakra Petch",monospace;font-size:15.5px;font-weight:600}
+  .proj .meta{font-size:11.5px;color:var(--faint);margin-top:3px}
+  .proj .nums{display:flex;gap:18px;margin-top:11px;flex-wrap:wrap}
+  .proj .nums div{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em}
+  .proj .nums b{display:block;font-family:"Chakra Petch",monospace;font-size:17px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums}
+  .proj .split{display:flex;height:5px;border-radius:3px;overflow:hidden;margin-top:11px;background:rgba(255,255,255,.06);gap:2px}
+  .proj .split i{display:block;height:100%;border-radius:3px}
+  .link{color:var(--cyan);text-decoration:none;font-size:12px;word-break:break-all}
+  .link:hover{text-decoration:underline}
+  .hide{display:none!important}
+  details summary{cursor:pointer;font-size:12.5px;color:var(--muted);padding:8px 0}
+  details summary:hover{color:var(--ink)}
+</style>
+</head>
+<body data-palette="#199e70,#d95926">
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow"><span class="dot"></span>Ruflo · Quartier Generale</div>
+      <h1>Quartier Generale</h1>
+      <p class="sub">Le credenziali che servono agli agenti, i tuoi canali di incasso e la contabilità di ogni progetto — tutto sul tuo computer, niente online.</p>
+    </div>
+    <div class="hactions">
+      <span class="chip" id="statoCass">cassaforte…</span>
+      <a class="btn ghost" href="./index.html">🌍 Torna al mondo</a>
+    </div>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" data-tab="chiavi" aria-selected="true">🔑 Cassaforte</button>
+    <button role="tab" data-tab="incassi" aria-selected="false">💳 Incassi</button>
+    <button role="tab" data-tab="progetti" aria-selected="false">📊 Progetti e contabilità</button>
+  </div>
+
+  <!-- ============ CASSAFORTE ============ -->
+  <section id="t-chiavi">
+    <div class="card" id="boxSblocco" style="display:none">
+      <h2>Cassaforte chiusa</h2>
+      <div class="in">
+        <p class="nota" style="margin-bottom:12px">È protetta da passphrase. Inseriscila per aprirla: resta aperta finché l'ecosistema è in funzione.</p>
+        <div class="row">
+          <div><label for="passSblocco">Passphrase</label><input id="passSblocco" type="password" autocomplete="current-password"></div>
+          <button class="btn" id="btnSblocca">Apri la cassaforte</button>
+        </div>
+        <p class="nota" id="errSblocco" style="color:#ffb3b3;margin-top:10px"></p>
+      </div>
+    </div>
+
+    <div class="card" id="boxChiavi">
+      <h2>Chiavi custodite <span id="nChiavi" style="color:var(--muted)">—</span></h2>
+      <div class="in">
+        <div class="avviso info"><span class="ic">🔒</span><span>Le chiavi restano cifrate sul tuo computer e <b>non vengono mai mostrate agli agenti</b>: un agente le usa per nome come variabile d'ambiente (per esempio <code>$env:MESHY_API_KEY</code>), così il valore non passa mai dalla conversazione.</span></div>
+        <div class="tw"><table id="tabChiavi"><thead><tr><th>Nome</th><th>Valore</th><th>Tipo</th><th>Note</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div id="vuotoChiavi" class="vuoto">Nessuna chiave ancora. Aggiungine una qui sotto: quando un agente ne avrà bisogno, la troverà già pronta.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Aggiungi una chiave</h2>
+      <div class="in">
+        <div class="row" style="margin-bottom:11px">
+          <div><label for="kNome">Nome</label><input id="kNome" class="mono" placeholder="MESHY_API_KEY" autocomplete="off"></div>
+          <div style="flex:2"><label for="kVal">Valore</label><input id="kVal" class="mono" type="password" placeholder="incolla qui la chiave" autocomplete="off"></div>
+          <div style="max-width:150px"><label for="kTipo">Tipo</label><select id="kTipo"><option value="api">API</option><option value="pagamenti">Pagamenti</option><option value="altro">Altro</option></select></div>
+        </div>
+        <div class="row">
+          <div><label for="kNote">Note (facoltative)</label><input id="kNote" placeholder="a cosa serve"></div>
+          <button class="btn" id="btnAddChiave">Custodisci</button>
+        </div>
+        <p class="nota" id="msgChiave" style="margin-top:10px"></p>
+        <details style="margin-top:8px">
+          <summary>Nomi che gli agenti riconoscono già</summary>
+          <p class="nota" style="margin-top:6px"><code>MESHY_API_KEY</code> — avatar 3D · <code>STRIPE_RESTRICTED_KEY</code> — statistiche incassi · <code>PAYPAL_CLIENT_ID</code> / <code>PAYPAL_CLIENT_SECRET</code> — API PayPal. Puoi comunque usare qualsiasi nome: verrà passato con quel nome.</p>
+        </details>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Protezione con passphrase</h2>
+      <div class="in">
+        <p class="nota" style="margin-bottom:12px">Senza passphrase le chiavi restano cifrate sul disco, ma chiunque usi il tuo account Windows può aprirle. <b>Con una passphrase</b> la cassaforte parte chiusa a ogni avvio e serve aprirla a mano: è la protezione più forte, consigliata se ci tieni credenziali di pagamento.</p>
+        <div class="row">
+          <div><label for="passNuova">Nuova passphrase</label><input id="passNuova" type="password" autocomplete="new-password" placeholder="lasciala vuota per toglierla"></div>
+          <button class="btn ghost" id="btnPass">Applica</button>
+          <button class="btn ghost" id="btnChiudi">🔒 Chiudi ora</button>
+        </div>
+        <p class="nota" style="margin-top:10px;color:var(--warn)">⚠️ Se dimentichi la passphrase le chiavi non sono recuperabili: dovrai reinserirle.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ INCASSI ============ -->
+  <section id="t-incassi" class="hide">
+    <div class="card">
+      <h2>Come farti pagare — leggi prima questo</h2>
+      <div class="in">
+        <div class="avviso alto"><span class="ic">⚠️</span><span><b>Per incassare non serve dare al sistema le chiavi che muovono denaro.</b> La chiave segreta live di Stripe (<code>sk_live_…</code>) può emettere rimborsi, leggere tutti i tuoi clienti e disporre trasferimenti. Se finisse nelle mani sbagliate, il danno è diretto.</span></div>
+        <p class="nota" style="margin-bottom:10px">Quello che serve davvero è molto meno:</p>
+        <div class="avviso ok"><span class="ic">✓</span><span><b>Per ricevere i soldi:</b> un <b>link di pagamento</b>. Su Stripe si chiama Payment Link, su PayPal è il tuo PayPal.me o un pulsante. Sono link pubblici: puoi condividerli senza rischio, li incolli qui e li assegni ai progetti.</span></div>
+        <div class="avviso ok"><span class="ic">✓</span><span><b>Per vedere le statistiche:</b> una chiave <b>a sola lettura</b>. Su Stripe si crea in Sviluppatori → Chiavi API → <i>Crea chiave ristretta</i>, dando solo permessi di lettura (inizia con <code>rk_</code>). Se qualcuno la ruba può guardare, non toccare.</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Stripe</h2>
+      <div class="in">
+        <div class="row" style="margin-bottom:11px">
+          <div style="flex:2"><label for="sLink">Link di pagamento (Payment Link)</label><input id="sLink" placeholder="https://buy.stripe.com/..." autocomplete="off"></div>
+          <button class="btn ghost" data-salva="STRIPE_PAYMENT_LINK" data-campo="sLink" data-tipo="pagamenti">Salva</button>
+        </div>
+        <div class="row">
+          <div style="flex:2"><label for="sKey">Chiave ristretta di sola lettura (facoltativa)</label><input id="sKey" class="mono" type="password" placeholder="rk_live_..." autocomplete="off"></div>
+          <button class="btn ghost" data-salva="STRIPE_RESTRICTED_KEY" data-campo="sKey" data-tipo="pagamenti">Salva</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>PayPal</h2>
+      <div class="in">
+        <div class="row" style="margin-bottom:11px">
+          <div style="flex:2"><label for="pMe">Il tuo PayPal.me o email di incasso</label><input id="pMe" placeholder="https://paypal.me/tuonome" autocomplete="off"></div>
+          <button class="btn ghost" data-salva="PAYPAL_LINK" data-campo="pMe" data-tipo="pagamenti">Salva</button>
+        </div>
+        <div class="row" style="margin-bottom:11px">
+          <div><label for="pId">Client ID (facoltativo, per le API)</label><input id="pId" class="mono" placeholder="A21AA..." autocomplete="off"></div>
+          <button class="btn ghost" data-salva="PAYPAL_CLIENT_ID" data-campo="pId" data-tipo="pagamenti">Salva</button>
+        </div>
+        <div class="row">
+          <div><label for="pSec">Client Secret (facoltativo)</label><input id="pSec" class="mono" type="password" placeholder="EK-..." autocomplete="off"></div>
+          <button class="btn ghost" data-salva="PAYPAL_CLIENT_SECRET" data-campo="pSec" data-tipo="pagamenti">Salva</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Canali configurati</h2>
+      <div class="in">
+        <div class="tw"><table id="tabPag"><thead><tr><th>Canale</th><th>Valore</th><th>Stato</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div id="vuotoPag" class="vuoto">Nessun canale di incasso ancora configurato.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PROGETTI ============ -->
+  <section id="t-progetti" class="hide">
+    <div class="tiles" id="tiles"></div>
+
+    <div class="card">
+      <h2>Andamento degli ultimi mesi <button class="btn ghost small" id="btnTab">Vedi come tabella</button></h2>
+      <div class="in">
+        <div class="chart-head">
+          <div class="legend">
+            <span><i style="background:var(--entrate)"></i> Entrate</span>
+            <span><i style="background:var(--uscite)"></i> Uscite</span>
+          </div>
+        </div>
+        <div class="chart-wrap" id="chartWrap">
+          <svg class="chart" id="chart" role="img" aria-label="Entrate e uscite mensili"></svg>
+          <div class="tip" id="tip"></div>
+        </div>
+        <div class="tw hide" id="chartTab"></div>
+        <div id="vuotoChart" class="vuoto">Ancora nessun movimento registrato.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Progetti <span id="nProg" style="color:var(--muted)">—</span></h2>
+      <div class="in">
+        <div id="listaProgetti"></div>
+        <div id="vuotoProg" class="vuoto">Nessun progetto. Creane uno qui sotto: ogni progetto avrà la sua contabilità.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Nuovo progetto</h2>
+      <div class="in">
+        <div class="row" style="margin-bottom:11px">
+          <div><label for="pgNome">Nome</label><input id="pgNome" placeholder="Sito per la panetteria"></div>
+          <div><label for="pgCliente">Cliente</label><input id="pgCliente" placeholder="Mario Rossi"></div>
+          <div style="max-width:120px"><label for="pgValuta">Valuta</label><select id="pgValuta"><option>EUR</option><option>USD</option><option>GBP</option><option>CHF</option></select></div>
+        </div>
+        <div class="row">
+          <div style="flex:2"><label for="pgLink">Link di pagamento per questo progetto</label><input id="pgLink" placeholder="https://buy.stripe.com/... oppure paypal.me/..."></div>
+          <button class="btn" id="btnAddProg">Crea progetto</button>
+        </div>
+        <p class="nota" id="msgProg" style="margin-top:10px"></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Registra un movimento</h2>
+      <div class="in">
+        <div class="row" style="margin-bottom:11px">
+          <div><label for="mvProg">Progetto</label><select id="mvProg"></select></div>
+          <div style="max-width:140px"><label for="mvTipo">Tipo</label><select id="mvTipo"><option value="entrata">Entrata</option><option value="uscita">Uscita</option></select></div>
+          <div style="max-width:140px"><label for="mvImporto">Importo</label><input id="mvImporto" type="number" step="0.01" min="0" placeholder="850.00"></div>
+          <div style="max-width:150px"><label for="mvFonte">Fonte</label><select id="mvFonte"><option value="manuale">Manuale</option><option value="stripe">Stripe</option><option value="paypal">PayPal</option><option value="agente">Agente</option></select></div>
+        </div>
+        <div class="row">
+          <div><label for="mvData">Data</label><input id="mvData" type="date"></div>
+          <div style="flex:2"><label for="mvDesc">Descrizione</label><input id="mvDesc" placeholder="Acconto, saldo, costo crediti…"></div>
+          <button class="btn" id="btnAddMov">Registra</button>
+        </div>
+        <p class="nota" id="msgMov" style="margin-top:10px"></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Ultimi movimenti</h2>
+      <div class="in">
+        <div class="tw"><table id="tabMov"><thead><tr><th>Data</th><th>Progetto</th><th>Descrizione</th><th>Fonte</th><th class="num">Importo</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div id="vuotoMov" class="vuoto">Nessun movimento registrato.</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const eur = (cent, val="EUR") => new Intl.NumberFormat("it-IT",{style:"currency",currency:val,maximumFractionDigits:2}).format(cent/100);
+  const compatto = cent => new Intl.NumberFormat("it-IT",{notation:"compact",maximumFractionDigits:1}).format(cent/100);
+  const MESI = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
+  const nomeMese = m => { const [a,ms]=m.split("-"); return MESI[+ms-1]+" "+a.slice(2); };
+
+  async function api(url, opz){
+    const r = await fetch(url, opz);
+    if(!r.ok && r.status!==400 && r.status!==404) throw new Error("HTTP "+r.status);
+    return r.json();
+  }
+  const post = (url,body)=>api(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  function msg(el, testo, colore){ const e=$(el); e.textContent=testo; e.style.color=colore||"var(--muted)"; if(testo) setTimeout(()=>{if(e.textContent===testo)e.textContent="";},6000); }
+
+  // ---------- schede ----------
+  document.querySelectorAll('.tabs button').forEach(b=>{
+    b.onclick=()=>{
+      document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute("aria-selected", String(x===b)));
+      for(const s of ["chiavi","incassi","progetti"]) $("#t-"+s).classList.toggle("hide", s!==b.dataset.tab);
+      if(b.dataset.tab==="progetti") disegnaGrafico();
+    };
+  });
+
+  // ---------- CASSAFORTE ----------
+  let cass = {sbloccata:false, conPassphrase:false, chiavi:[]};
+
+  async function caricaCassaforte(){
+    try{ cass = await api("/api/vault"); }
+    catch{ $("#statoCass").textContent="ecosistema non avviato"; return; }
+    const s=$("#statoCass");
+    s.className="chip "+(cass.sbloccata?"attivo":"");
+    s.textContent = cass.sbloccata ? (cass.conPassphrase?"🔓 cassaforte aperta":"🔑 cassaforte attiva") : "🔒 cassaforte chiusa";
+    $("#boxSblocco").style.display = cass.sbloccata ? "none" : "block";
+    $("#boxChiavi").style.display = cass.sbloccata ? "block" : "none";
+    renderChiavi(); renderPagamenti();
+  }
+
+  function avvisoHtml(a){
+    if(!a || a.livello==="nessuno") return "";
+    const cls = a.livello==="alto"?"alto":a.livello==="medio"?"medio":a.livello==="ok"?"ok":"info";
+    const ic = a.livello==="alto"?"⚠️":a.livello==="ok"?"✓":"ℹ️";
+    return '<div class="avviso '+cls+'" style="margin:8px 0 0"><span class="ic">'+ic+'</span><span>'+esc(a.testo)+'</span></div>';
+  }
+
+  function renderChiavi(){
+    const tb=$("#tabChiavi tbody"); tb.innerHTML="";
+    const ch=cass.chiavi||[];
+    $("#nChiavi").textContent=ch.length;
+    $("#vuotoChiavi").style.display = ch.length?"none":"block";
+    $("#tabChiavi").style.display = ch.length?"table":"none";
+    for(const k of ch){
+      const tr=document.createElement("tr");
+      tr.innerHTML='<td class="name"><code>'+esc(k.nome)+'</code>'+avvisoHtml(k.avviso)+'</td>'+
+        '<td><span class="mask">'+esc(k.anteprima)+'</span></td>'+
+        '<td><span class="chip '+(k.tipo==="pagamenti"?"pag":"api")+'">'+esc(k.tipo)+'</span></td>'+
+        '<td>'+esc(k.note||"—")+'</td>'+
+        '<td style="text-align:right"><button class="btn ghost small" data-del="'+esc(k.nome)+'">Rimuovi</button></td>';
+      tb.appendChild(tr);
+    }
+    tb.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{
+      if(!confirm("Rimuovere "+b.dataset.del+"? Gli agenti non potranno più usarla."))return;
+      await post("/api/vault",{azione:"rimuovi",nome:b.dataset.del}); caricaCassaforte();
+    });
+  }
+
+  $("#btnSblocca").onclick=async()=>{
+    const r=await post("/api/vault",{azione:"sblocca",passphrase:$("#passSblocco").value});
+    $("#errSblocco").textContent = r.ok?"":"Passphrase errata.";
+    if(r.ok){ $("#passSblocco").value=""; caricaCassaforte(); }
+  };
+  $("#passSblocco").addEventListener("keydown",e=>{if(e.key==="Enter")$("#btnSblocca").click();});
+
+  $("#btnAddChiave").onclick=async()=>{
+    const nome=$("#kNome").value.trim(), valore=$("#kVal").value;
+    if(!nome||!valore) return msg("#msgChiave","Servono nome e valore.","#ffb3b3");
+    const r=await post("/api/vault",{azione:"imposta",nome,valore,tipo:$("#kTipo").value,note:$("#kNote").value});
+    if(!r.ok) return msg("#msgChiave",r.errore||"Non riuscito.","#ffb3b3");
+    $("#kNome").value=$("#kVal").value=$("#kNote").value="";
+    msg("#msgChiave","Custodita come "+r.nome+".","var(--good)");
+    caricaCassaforte();
+  };
+
+  $("#btnPass").onclick=async()=>{
+    const p=$("#passNuova").value;
+    if(p && !confirm("Da ora la cassaforte partirà chiusa e servirà questa passphrase. Se la dimentichi, le chiavi non sono recuperabili. Procedo?"))return;
+    const r=await post("/api/vault",{azione:"passphrase",passphrase:p||null});
+    $("#passNuova").value="";
+    if(r.ok) caricaCassaforte();
+  };
+  $("#btnChiudi").onclick=async()=>{ await post("/api/vault",{azione:"chiudi"}); caricaCassaforte(); };
+
+  // salvataggi rapidi della scheda Incassi
+  document.querySelectorAll("[data-salva]").forEach(b=>b.onclick=async()=>{
+    const campo=$("#"+b.dataset.campo), valore=campo.value.trim();
+    if(!valore) return;
+    const r=await post("/api/vault",{azione:"imposta",nome:b.dataset.salva,valore,tipo:b.dataset.tipo});
+    if(r.ok){ campo.value=""; caricaCassaforte(); }
+  });
+
+  const CANALI=[
+    {nome:"STRIPE_PAYMENT_LINK", et:"Stripe · link di pagamento"},
+    {nome:"STRIPE_RESTRICTED_KEY", et:"Stripe · chiave sola lettura"},
+    {nome:"PAYPAL_LINK", et:"PayPal · link di incasso"},
+    {nome:"PAYPAL_CLIENT_ID", et:"PayPal · client ID"},
+    {nome:"PAYPAL_CLIENT_SECRET", et:"PayPal · client secret"},
+  ];
+  function renderPagamenti(){
+    const tb=$("#tabPag tbody"); tb.innerHTML="";
+    const presenti=CANALI.map(c=>({...c, k:(cass.chiavi||[]).find(x=>x.nome===c.nome)})).filter(c=>c.k);
+    $("#vuotoPag").style.display=presenti.length?"none":"block";
+    $("#tabPag").style.display=presenti.length?"table":"none";
+    for(const c of presenti){
+      const tr=document.createElement("tr");
+      const link=/LINK/.test(c.nome);
+      tr.innerHTML='<td class="name">'+esc(c.et)+'</td>'+
+        '<td><span class="mask">'+esc(link?c.k.anteprima:c.k.anteprima)+'</span></td>'+
+        '<td>'+(c.k.avviso&&c.k.avviso.livello==="alto"?'<span class="chip" style="color:#ffb3b3;border-color:rgba(255,107,107,.45)">da sostituire</span>':'<span class="chip attivo">attivo</span>')+'</td>'+
+        '<td style="text-align:right"><button class="btn ghost small" data-delp="'+esc(c.nome)+'">Rimuovi</button></td>';
+      tb.appendChild(tr);
+    }
+    tb.querySelectorAll("[data-delp]").forEach(b=>b.onclick=async()=>{
+      await post("/api/vault",{azione:"rimuovi",nome:b.dataset.delp}); caricaCassaforte();
+    });
+  }
+
+  // ---------- PROGETTI E CONTABILITÀ ----------
+  let reg={progetti:[],movimenti:[],totali:{entrate:0,uscite:0,netto:0,progetti:0,attivi:0},serieMensile:[]};
+
+  async function caricaRegistro(){
+    try{ reg=await api("/api/progetti"); }catch{ return; }
+    renderTiles(); renderProgetti(); renderMovimenti(); riempiSelect(); disegnaGrafico();
+  }
+
+  function renderTiles(){
+    const t=reg.totali;
+    $("#tiles").innerHTML=
+      tile("Incassato",eur(t.entrate),"su "+t.progetti+" progetti","var(--entrate)")+
+      tile("Speso",eur(t.uscite),"costi registrati","var(--uscite)")+
+      tile("Margine",eur(t.netto),t.netto>=0?"in attivo":"in perdita",t.netto>=0?"var(--good)":"var(--uscite)")+
+      tile("Progetti attivi",String(t.attivi),"su "+t.progetti+" totali","var(--violet)");
+  }
+  const tile=(l,v,s,c)=>'<div class="tile"><div class="l">'+l+'</div><div class="v" style="color:'+c+'">'+esc(v)+'</div><div class="s">'+esc(s)+'</div></div>';
+
+  function renderProgetti(){
+    const box=$("#listaProgetti"); box.innerHTML="";
+    $("#nProg").textContent=reg.progetti.length;
+    $("#vuotoProg").style.display=reg.progetti.length?"none":"block";
+    for(const p of reg.progetti){
+      const tot=Math.max(1,p.entrate+p.uscite);
+      const el=document.createElement("div"); el.className="proj";
+      el.innerHTML=
+        '<div class="proj-top"><div><h3>'+esc(p.nome)+'</h3><div class="meta">'+
+          (p.cliente?esc(p.cliente)+' · ':'')+p.movimenti+' movimenti'+(p.ultimoMovimento?' · ultimo '+esc(p.ultimoMovimento):'')+'</div></div>'+
+          '<div style="display:flex;gap:8px;align-items:center"><span class="chip '+(p.stato==="in corso"?"attivo":p.stato==="consegnato"?"consegnato":"sospeso")+'">'+esc(p.stato)+'</span>'+
+          '<button class="btn ghost small" data-delprog="'+p.id+'">Elimina</button></div></div>'+
+        '<div class="nums">'+
+          '<div>Entrate<b class="pos">'+eur(p.entrate,p.valuta)+'</b></div>'+
+          '<div>Uscite<b class="neg">'+eur(p.uscite,p.valuta)+'</b></div>'+
+          '<div>Margine<b style="color:'+(p.netto>=0?"var(--good)":"var(--uscite)")+'">'+eur(p.netto,p.valuta)+'</b></div>'+
+        '</div>'+
+        '<div class="split"><i style="background:var(--entrate);width:'+(p.entrate/tot*100)+'%"></i><i style="background:var(--uscite);width:'+(p.uscite/tot*100)+'%"></i></div>'+
+        (p.linkPagamento?'<div style="margin-top:10px"><a class="link" href="'+esc(p.linkPagamento)+'" target="_blank" rel="noopener">💳 '+esc(p.linkPagamento)+'</a></div>':'');
+      box.appendChild(el);
+    }
+    box.querySelectorAll("[data-delprog]").forEach(b=>b.onclick=async()=>{
+      if(!confirm("Eliminare il progetto e tutti i suoi movimenti?"))return;
+      await post("/api/progetti",{azione:"elimina",id:b.dataset.delprog}); caricaRegistro();
+    });
+  }
+
+  function riempiSelect(){
+    const s=$("#mvProg"); const prima=s.value;
+    s.innerHTML=reg.progetti.map(p=>'<option value="'+p.id+'">'+esc(p.nome)+'</option>').join("")
+      || '<option value="">— crea prima un progetto —</option>';
+    if(prima) s.value=prima;
+  }
+
+  function renderMovimenti(){
+    const tb=$("#tabMov tbody"); tb.innerHTML="";
+    const nomi=Object.fromEntries(reg.progetti.map(p=>[p.id,p.nome]));
+    $("#vuotoMov").style.display=reg.movimenti.length?"none":"block";
+    $("#tabMov").style.display=reg.movimenti.length?"table":"none";
+    for(const m of reg.movimenti.slice(0,40)){
+      const tr=document.createElement("tr");
+      const seg=m.tipo==="entrata";
+      tr.innerHTML='<td>'+esc(m.data)+'</td><td class="name">'+esc(nomi[m.progetto]||"—")+'</td>'+
+        '<td>'+esc(m.descrizione||"—")+'</td><td><span class="chip">'+esc(m.fonte)+'</span></td>'+
+        '<td class="num '+(seg?"pos":"neg")+'">'+(seg?"+":"−")+eur(m.centesimi,m.valuta).replace("-","")+'</td>'+
+        '<td style="text-align:right"><button class="btn ghost small" data-delmov="'+m.id+'">✕</button></td>';
+      tb.appendChild(tr);
+    }
+    tb.querySelectorAll("[data-delmov]").forEach(b=>b.onclick=async()=>{
+      await post("/api/progetti",{azione:"delMovimento",id:b.dataset.delmov}); caricaRegistro();
+    });
+  }
+
+  $("#btnAddProg").onclick=async()=>{
+    const nome=$("#pgNome").value.trim();
+    if(!nome) return msg("#msgProg","Serve almeno il nome.","#ffb3b3");
+    const r=await post("/api/progetti",{azione:"crea",nome,cliente:$("#pgCliente").value,
+      valuta:$("#pgValuta").value,linkPagamento:$("#pgLink").value});
+    if(!r.ok) return msg("#msgProg",r.errore||"Non riuscito.","#ffb3b3");
+    $("#pgNome").value=$("#pgCliente").value=$("#pgLink").value="";
+    msg("#msgProg","Progetto creato.","var(--good)");
+    caricaRegistro();
+  };
+
+  $("#btnAddMov").onclick=async()=>{
+    const progetto=$("#mvProg").value;
+    if(!progetto) return msg("#msgMov","Crea prima un progetto.","#ffb3b3");
+    const importo=parseFloat($("#mvImporto").value);
+    if(!(importo>0)) return msg("#msgMov","Inserisci un importo maggiore di zero.","#ffb3b3");
+    const r=await post("/api/progetti",{azione:"movimento",progetto,tipo:$("#mvTipo").value,
+      importo,fonte:$("#mvFonte").value,descrizione:$("#mvDesc").value,data:$("#mvData").value});
+    if(!r.ok) return msg("#msgMov",r.errore||"Non riuscito.","#ffb3b3");
+    $("#mvImporto").value=$("#mvDesc").value="";
+    msg("#msgMov","Movimento registrato.","var(--good)");
+    caricaRegistro();
+  };
+
+  // ---------- GRAFICO: entrate/uscite per mese ----------
+  const SVGNS="http://www.w3.org/2000/svg";
+  function el(n,attr){const e=document.createElementNS(SVGNS,n);for(const k in attr)e.setAttribute(k,attr[k]);return e;}
+
+  function disegnaGrafico(){
+    const svg=$("#chart"), dati=reg.serieMensile||[];
+    svg.innerHTML="";
+    $("#vuotoChart").style.display=dati.length?"none":"block";
+    $("#chartWrap").style.display=dati.length?"block":"none";
+    if(!dati.length) return;
+
+    const W=Math.max(520, $("#chartWrap").clientWidth||760), H=230;
+    const M={t:14,r:14,b:30,l:58};
+    svg.setAttribute("viewBox","0 0 "+W+" "+H);
+    const iw=W-M.l-M.r, ih=H-M.t-M.b;
+    const max=Math.max(1,...dati.flatMap(d=>[d.entrate,d.uscite]));
+    // scala arrotondata verso l'alto per una griglia leggibile
+    const passo=Math.pow(10,Math.floor(Math.log10(max)))/2;
+    const cima=Math.ceil(max/passo)*passo;
+    const y=v=>M.t+ih-(v/cima)*ih;
+
+    // griglia recessiva + asse valori
+    for(let i=0;i<=4;i++){
+      const v=cima*i/4, yy=y(v);
+      svg.appendChild(el("line",{x1:M.l,x2:W-M.r,y1:yy,y2:yy,stroke:"rgba(255,255,255,.07)","stroke-width":1}));
+      const t=el("text",{x:M.l-9,y:yy+4,"text-anchor":"end",fill:"#59647f","font-size":10,
+        "font-family":"JetBrains Mono, monospace"});
+      t.textContent="€"+compatto(v); svg.appendChild(t);
+    }
+
+    const passoX=iw/dati.length;
+    const lw=Math.min(20,(passoX-10)/2);   // due barre affiancate, 2px di stacco
+    dati.forEach((d,i)=>{
+      const cx=M.l+passoX*i+passoX/2;
+      const barre=[{v:d.entrate,c:"var(--entrate)",dx:-lw-1},{v:d.uscite,c:"var(--uscite)",dx:1}];
+      for(const b of barre){
+        const h=Math.max(b.v>0?2:0,(b.v/cima)*ih);
+        if(h<=0) continue;
+        svg.appendChild(el("rect",{x:cx+b.dx,y:M.t+ih-h,width:lw,height:h,fill:b.c,rx:4,ry:4}));
+      }
+      const t=el("text",{x:cx,y:H-10,"text-anchor":"middle",fill:"#8a96b3","font-size":10.5,
+        "font-family":"JetBrains Mono, monospace"});
+      t.textContent=nomeMese(d.mese); svg.appendChild(t);
+
+      // zona di aggancio per il tooltip, più larga della barra
+      const hot=el("rect",{x:M.l+passoX*i,y:M.t,width:passoX,height:ih,fill:"transparent"});
+      hot.style.cursor="crosshair";
+      hot.addEventListener("mouseenter",e=>mostraTip(e,d,cx,W));
+      hot.addEventListener("mousemove",e=>mostraTip(e,d,cx,W));
+      hot.addEventListener("mouseleave",()=>$("#tip").style.opacity=0);
+      svg.appendChild(hot);
+    });
+    // linea di base
+    svg.appendChild(el("line",{x1:M.l,x2:W-M.r,y1:M.t+ih,y2:M.t+ih,stroke:"rgba(255,255,255,.18)","stroke-width":1}));
+    renderTabellaGrafico(dati);
+  }
+
+  function mostraTip(e,d,cx,W){
+    const tip=$("#tip"), wrap=$("#chartWrap");
+    const netto=d.entrate-d.uscite;
+    tip.innerHTML='<div class="t">'+nomeMese(d.mese)+'</div>'+
+      '<div class="r"><i style="background:var(--entrate)"></i>Entrate '+eur(d.entrate)+'</div>'+
+      '<div class="r"><i style="background:var(--uscite)"></i>Uscite '+eur(d.uscite)+'</div>'+
+      '<div class="r" style="border-top:1px solid var(--border-soft);padding-top:5px;margin-top:6px">Margine '+eur(netto)+'</div>';
+    tip.style.opacity=1;
+    const r=wrap.getBoundingClientRect();
+    let x=e.clientX-r.left+14;
+    if(x+tip.offsetWidth>r.width-6) x=e.clientX-r.left-tip.offsetWidth-14;
+    tip.style.left=Math.max(4,x)+"px";
+    tip.style.top=Math.max(4,e.clientY-r.top-tip.offsetHeight-10)+"px";
+  }
+
+  function renderTabellaGrafico(dati){
+    $("#chartTab").innerHTML='<table><thead><tr><th>Mese</th><th class="num">Entrate</th><th class="num">Uscite</th><th class="num">Margine</th></tr></thead><tbody>'+
+      dati.map(d=>'<tr><td class="name">'+nomeMese(d.mese)+'</td><td class="num pos">'+eur(d.entrate)+
+        '</td><td class="num neg">'+eur(d.uscite)+'</td><td class="num">'+eur(d.entrate-d.uscite)+'</td></tr>').join("")+
+      '</tbody></table>';
+  }
+  $("#btnTab").onclick=()=>{
+    const t=$("#chartTab"), c=$("#chartWrap"), nascosta=t.classList.contains("hide");
+    t.classList.toggle("hide",!nascosta); c.classList.toggle("hide",nascosta);
+    $("#btnTab").textContent=nascosta?"Vedi come grafico":"Vedi come tabella";
+  };
+  let rt; addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(disegnaGrafico,150);});
+
+  // ---------- avvio ----------
+  $("#mvData").value=new Date().toISOString().slice(0,10);
+  caricaCassaforte();
+  caricaRegistro();
+})();
+</script>
+</body>
+</html>

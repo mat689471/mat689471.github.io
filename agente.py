@@ -59,6 +59,11 @@ FILE_SORGENTE = os.path.basename(os.path.abspath(__file__))
 # file dentro questa cartella (live.json e inbox.json).
 MONDO_DIR = os.path.join(BASE_DIR, "mondo")
 
+# Chiavi prelevate dalla Cassaforte e passate ai comandi come variabili
+# d'ambiente. Popolato da orchestra.py all'avvio: gli agenti conoscono solo
+# i NOMI, mai i valori.
+AMBIENTE_CASSAFORTE = {}
+
 
 # ===========================================================================
 # CLASSIFICAZIONE COMANDI DISTRUTTIVI
@@ -274,8 +279,14 @@ def esegui_powershell(comando):
     Esegue un comando tramite PowerShell catturando stdout, stderr e return code.
     Timeout di 90 secondi: allo scadere il processo viene terminato (kill).
 
+    Le chiavi custodite nella Cassaforte vengono passate come variabili
+    d'ambiente: il comando puo' usarle con $env:NOME senza che il valore
+    compaia mai nel comando stesso, nel log o nella conversazione.
+
     Ritorna un dizionario: {stdout, stderr, returncode}.
     """
+    ambiente = dict(os.environ)
+    ambiente.update(AMBIENTE_CASSAFORTE)
     try:
         proc = subprocess.Popen(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", comando],
@@ -283,6 +294,7 @@ def esegui_powershell(comando):
             stderr=subprocess.PIPE,
             encoding="utf-8",
             errors="replace",
+            env=ambiente,
         )
     except FileNotFoundError:
         return {"stdout": "", "stderr": "PowerShell non trovato sul sistema.", "returncode": -1}

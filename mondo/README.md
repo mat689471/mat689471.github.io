@@ -121,3 +121,74 @@ dall'Orchestratore), `inbox.json` (i tuoi messaggi e le approvazioni),
   comunque, il visore mostra un avviso.
 - Senza l'Orchestratore avviato, il mondo resta collegato e mostra l'attività
   grezza di `agente.py` (i comandi eseguiti), invitandoti ad avviarlo.
+
+---
+
+# Quartier Generale
+
+Accanto al mondo c'è `gestione.html`: **cassaforte delle chiavi**, **canali di
+incasso** e **contabilità dei progetti**. Si apre dal pulsante 🏛️ nel mondo,
+oppure su `http://localhost:5178/gestione.html`.
+
+Tutti i dati stanno in `dati/`, **escluso da git**: non finiscono mai nel sito
+pubblico.
+
+## 🔑 Cassaforte
+
+Il posto dove metti le chiavi API man mano che le ottieni (Meshy, e qualunque
+altra ti serva). Quando un agente ne avrà bisogno, la troverà già pronta.
+
+**Gli agenti non vedono mai i valori.** Le chiavi vengono passate ai comandi
+come variabili d'ambiente: l'agente le usa per nome (`$env:MESHY_API_KEY`) e il
+valore non entra mai nella conversazione né nei log.
+
+**Come sono protette:**
+- cifrate a riposo con AES-256-GCM in `dati/cassaforte.enc`;
+- di base la chiave di cifratura sta in `dati/.masterkey` (protegge il file se
+  finisce in uno zip o in un repository, non da chi usa il tuo account Windows);
+- **con una passphrase** (consigliata se ci tieni credenziali di pagamento) la
+  cassaforte parte chiusa a ogni avvio e va aperta a mano. La passphrase non
+  viene salvata da nessuna parte: se la dimentichi, le chiavi vanno reinserite.
+
+Le API della cassaforte rispondono **solo a richieste dal computer stesso**.
+
+## 💳 Incassi — Stripe e PayPal
+
+Qui c'è una cosa importante da sapere, e la pagina te la ripete:
+
+**Per farti pagare non serve dare al sistema le chiavi che muovono denaro.**
+La chiave segreta live di Stripe (`sk_live_…`) può emettere rimborsi, leggere
+tutti i tuoi clienti e disporre trasferimenti.
+
+Serve molto meno:
+
+| Ti serve… | Metti questo | Perché è sicuro |
+|---|---|---|
+| **Ricevere i soldi** | il **link di pagamento** (Stripe Payment Link, PayPal.me) | sono link pubblici: puoi condividerli senza rischio |
+| **Vedere le statistiche** | una **chiave a sola lettura** (Stripe: chiave ristretta `rk_…`) | se te la rubano possono guardare, non toccare |
+
+Se inserisci una chiave `sk_live_`, la cassaforte te la segnala in rosso e ti
+dice cosa usare al posto suo.
+
+## 📊 Progetti e contabilità
+
+Ogni progetto ha la sua scheda: entrate, uscite, margine, link di pagamento e
+registro dei movimenti. In cima le tessere riassuntive e il grafico
+**entrate/uscite degli ultimi 12 mesi** (con tabella equivalente, per chi
+preferisce i numeri).
+
+I movimenti possono arrivare a mano, dagli agenti (per esempio il costo dei
+crediti consumati) o, in futuro, da Stripe/PayPal collegando una chiave di sola
+lettura. Gli importi sono conservati in centesimi interi, così i conti non
+soffrono degli errori di arrotondamento dei decimali.
+
+## I file del Quartier Generale
+
+| File | A cosa serve |
+|---|---|
+| `gestione.html` | La pagina: cassaforte, incassi, progetti |
+| `vault.mjs` | Cassaforte cifrata (AES-256-GCM, passphrase con scrypt) |
+| `ledger.mjs` | Progetti, movimenti e statistiche |
+
+Dati privati creati a runtime (mai versionati): `dati/cassaforte.enc`,
+`dati/.masterkey`, `dati/progetti.json`.

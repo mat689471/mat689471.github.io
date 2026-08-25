@@ -13,3 +13,6 @@ mondo/objective.json
 # Stato vivo e coda comandi del mondo (runtime)
 mondo/live.json
 mondo/inbox.json
+
+# Cassaforte e contabilità: dati privati, MAI nel repository pubblico
+dati/

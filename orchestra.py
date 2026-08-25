@@ -24,6 +24,8 @@ import os
 import json
 import time
 import threading
+import urllib.request
+import urllib.error
 from datetime import datetime
 
 import agente  # riusa esecuzione comandi, log e classificazione
@@ -231,6 +233,34 @@ MONDO = None  # istanza globale, impostata da avvia()
 
 
 # ---------------------------------------------------------------------------
+# Cassaforte: le chiavi arrivano dal server locale del mondo
+# ---------------------------------------------------------------------------
+
+# Porte su cui avvia.mjs si mette in ascolto (la prima libera a partire da 5178).
+PORTE_MONDO = range(5178, 5189)
+
+
+def carica_chiavi():
+    """
+    Preleva le chiavi custodite e le mette a disposizione dei comandi come
+    variabili d'ambiente. Ritorna l'elenco dei NOMI: e' l'unica cosa che gli
+    agenti sapranno: il valore non entra mai nella conversazione ne' nei log.
+    Se la cassaforte e' chiusa o il server non risponde, si prosegue senza.
+    """
+    for porta in PORTE_MONDO:
+        try:
+            url = "http://127.0.0.1:{}/api/secret".format(porta)
+            with urllib.request.urlopen(url, timeout=1.5) as r:
+                dati = json.loads(r.read().decode("utf-8"))
+            ambiente = dati.get("ambiente") or {}
+            agente.AMBIENTE_CASSAFORTE = {str(k): str(v) for k, v in ambiente.items()}
+            return sorted(agente.AMBIENTE_CASSAFORTE.keys())
+        except (urllib.error.URLError, OSError, ValueError):
+            continue
+    return []
+
+
+# ---------------------------------------------------------------------------
 # Strumenti degli agenti specialisti
 # ---------------------------------------------------------------------------
 
@@ -271,6 +301,21 @@ TOOLS_SPECIALISTA = [
 ]
 
 
+def _righe_chiavi():
+    """Righe di prompt che elencano le chiavi disponibili: solo i nomi."""
+    nomi = sorted(agente.AMBIENTE_CASSAFORTE.keys())
+    if not nomi:
+        return []
+    return [
+        u"",
+        u"--- Chiavi disponibili (Cassaforte) ---",
+        u"Queste credenziali sono gia' caricate come variabili d'ambiente dei comandi.",
+        u"NON conosci i loro valori e non devi chiederli: usale per nome, es. $env:" + nomi[0] + u".",
+        u"Non stampare mai il contenuto di queste variabili a schermo.",
+        u"Disponibili: " + u", ".join(nomi),
+    ]
+
+
 def _prompt_specialista(ruolo, nome):
     return u"\n".join([
         u"Sei '{}', un agente specialista ({}) dentro l'ecosistema di lavoro dell'utente.".format(nome, ruolo),
@@ -280,7 +325,7 @@ def _prompt_specialista(ruolo, nome):
         u"Se produci qualcosa di consultabile (elenco, riepilogo, codice) mostralo con 'anteprima'.",
         u"Quando hai finito chiama 'consegna' con un riepilogo chiaro: sara' l'Orchestratore a parlare con l'utente.",
         u"Sii concreto e sintetico. Non chiedere permessi: ci pensa il sistema.",
-    ])
+    ] + _righe_chiavi())
 
 
 def esegui_specialista(client, ruolo, istruzioni, memoria):
@@ -425,6 +470,7 @@ def _prompt_orchestratore(memoria):
         testo.append(u"\n--- Memoria ---")
         for k, v in memoria["fatti"].items():
             testo.append(u"- {}: {}".format(k, v))
+    testo.extend(_righe_chiavi())
     return u"\n".join(testo)
 
 
@@ -511,7 +557,12 @@ def avvia(client, memoria):
     # instrada le conferme dei comandi distruttivi verso il mondo
     agente.CHIEDI_CONFERMA_HOOK = MONDO.chiedi_approvazione
 
+    nomi = carica_chiavi()
     print(u"\n Ecosistema avviato. L'Orchestratore e' in ascolto.")
+    if nomi:
+        print(u" Cassaforte: {} chiavi disponibili agli agenti ({}).".format(len(nomi), u", ".join(nomi[:4]) + (u"…" if len(nomi) > 4 else u"")))
+    else:
+        print(u" Cassaforte: nessuna chiave (aggiungile dal Quartier Generale).")
     print(u" Apri il mondo e scrivi nella Sala Comando. Ctrl+C per uscire.\n")
     MONDO.dico(u"Orchestratore",
                u"Ecosistema online. Dimmi cosa ti serve: decido io chi mettere al lavoro.",

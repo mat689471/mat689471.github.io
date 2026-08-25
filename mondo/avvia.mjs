@@ -16,6 +16,8 @@
 
 import http from "node:http";
 import { readFile, writeFile } from "node:fs/promises";
+import { Cassaforte } from "./vault.mjs";
+import { Registro } from "./ledger.mjs";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { exec } from "node:child_process";
@@ -38,6 +40,25 @@ const MIME = {
 
 const JSONH = { "Content-Type": "application/json" };
 const INBOX = path.join(ROOT, "inbox.json");
+const DATI = path.join(ROOT, "..", "dati");   // cassaforte + contabilità (fuori da git)
+
+const cassaforte = new Cassaforte(DATI);
+const registro = new Registro(DATI);
+
+function json(res, code, obj) { res.writeHead(code, JSONH); res.end(JSON.stringify(obj)); }
+function leggiCorpo(req) {
+  return new Promise((ris, rif) => {
+    let b = "";
+    req.on("data", c => { b += c; if (b.length > 200000) { req.destroy(); rif(new Error("troppo grande")); } });
+    req.on("end", () => { try { ris(JSON.parse(b || "{}")); } catch (e) { rif(e); } });
+    req.on("error", rif);
+  });
+}
+/** Le API scrivono e leggono segreti: accettiamo solo richieste dal PC stesso. */
+function daLocale(req) {
+  const a = req.socket.remoteAddress || "";
+  return a === "127.0.0.1" || a === "::1" || a === "::ffff:127.0.0.1";
+}
 
 // Coda dei comandi dalla pagina: append serializzato per non perdere voci.
 let codaInbox = Promise.resolve();
@@ -81,6 +102,61 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // ---- CASSAFORTE -------------------------------------------------------
+    // Solo dal PC stesso: qui passano credenziali.
+    if (apiPath.startsWith("/api/vault") || apiPath === "/api/secret") {
+      if (!daLocale(req)) return json(res, 403, { ok: false, errore: "solo da questo computer" });
+
+      if (apiPath === "/api/vault" && req.method === "GET")
+        return json(res, 200, cassaforte.elenco());
+
+      // Valore in chiaro: lo usa solo l'ecosistema locale per costruire
+      // l'ambiente dei comandi. Gli agenti non lo vedono mai.
+      if (apiPath === "/api/secret" && req.method === "GET") {
+        const nome = new URL(req.url, "http://x").searchParams.get("nome");
+        if (nome) {
+          const v = cassaforte.valore(nome);
+          return v === null ? json(res, 404, { ok: false }) : json(res, 200, { ok: true, valore: v });
+        }
+        return json(res, 200, { ok: true, ambiente: cassaforte.ambiente() });
+      }
+
+      if (apiPath === "/api/vault" && req.method === "POST") {
+        const p = await leggiCorpo(req);
+        try {
+          switch (p.azione) {
+            case "imposta":   return json(res, 200, await cassaforte.imposta(p.nome, p.valore, { tipo: p.tipo, note: p.note }));
+            case "rimuovi":   return json(res, 200, await cassaforte.rimuovi(p.nome));
+            case "sblocca":   return json(res, 200, await cassaforte.sblocca(p.passphrase));
+            case "chiudi":    cassaforte.chiudi(); return json(res, 200, { ok: true });
+            case "passphrase":return json(res, 200, await cassaforte.impostaPassphrase(p.passphrase || null));
+            default:          return json(res, 400, { ok: false, errore: "azione sconosciuta" });
+          }
+        } catch (e) { return json(res, 400, { ok: false, errore: e.message }); }
+      }
+      return json(res, 405, { ok: false });
+    }
+
+    // ---- PROGETTI E CONTABILITÀ ------------------------------------------
+    if (apiPath.startsWith("/api/progetti")) {
+      if (!daLocale(req)) return json(res, 403, { ok: false, errore: "solo da questo computer" });
+      if (req.method === "GET") return json(res, 200, registro.vista());
+      if (req.method === "POST") {
+        const p = await leggiCorpo(req);
+        try {
+          switch (p.azione) {
+            case "crea":       return json(res, 200, await registro.creaProgetto(p));
+            case "aggiorna":   return json(res, 200, await registro.aggiornaProgetto(p.id, p));
+            case "elimina":    return json(res, 200, await registro.eliminaProgetto(p.id));
+            case "movimento":  return json(res, 200, await registro.aggiungiMovimento(p));
+            case "delMovimento": return json(res, 200, await registro.eliminaMovimento(p.id));
+            default:           return json(res, 400, { ok: false, errore: "azione sconosciuta" });
+          }
+        } catch (e) { return json(res, 400, { ok: false, errore: e.message }); }
+      }
+      return json(res, 405, { ok: false });
+    }
+
     let urlPath = decodeURIComponent(req.url.split("?")[0]);
     if (urlPath === "/") urlPath = "/index.html";
     // impedisci di uscire dalla cartella
@@ -111,9 +187,15 @@ function ascolta(port) {
   });
   server.listen(port, "127.0.0.1", async () => {
     const url = `http://localhost:${port}/`;
+    await cassaforte.init();
+    await registro.init();
     console.log("\n===============================================");
     console.log("  L'Ecosistema è in funzione!");
-    console.log("  Aprilo qui:  " + url);
+    console.log("  Mondo:          " + url);
+    console.log("  Quartier Gen.:  " + url + "gestione.html");
+    console.log("  Cassaforte: " + (cassaforte.conPassphrase
+      ? (cassaforte.sbloccata ? "aperta" : "chiusa — sbloccala dal Quartier Generale")
+      : "attiva (senza passphrase)"));
     console.log("  (per fermare: chiudi questa finestra o Ctrl+C)");
     console.log("===============================================\n");
 
