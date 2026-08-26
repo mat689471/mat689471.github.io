@@ -249,6 +249,31 @@ def tipo_vetrina(percorso):
     return TIPI_VETRINA.get(os.path.splitext(percorso)[1].lower(), "testo")
 
 
+def manda_email(a, oggetto, testo):
+    """
+    Manda una mail chiedendolo al server locale, che tiene i permessi OAuth.
+    Qui non si sa niente di Google o Microsoft: tutto l'accesso sta in un posto
+    solo, cifrato, e questo modulo si limita a chiedere.
+    """
+    corpo = json.dumps({"a": a, "oggetto": oggetto, "testo": testo}).encode("utf-8")
+    for porta in range(5178, 5188):
+        try:
+            req = urllib.request.Request(
+                "http://127.0.0.1:{}/api/account/manda".format(porta), data=corpo,
+                headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(req, timeout=45) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            try:
+                return {"ok": False,
+                        "errore": json.loads(e.read().decode("utf-8")).get("errore", str(e))}
+            except Exception:
+                return {"ok": False, "errore": u"errore HTTP {}".format(e.code)}
+        except (urllib.error.URLError, OSError, ValueError):
+            continue
+    return {"ok": False, "errore": u"il mondo non risponde: e' acceso 'node mondo/avvia.mjs'?"}
+
+
 def registra_consegna(titolo, percorso, nota, agente, colore):
     """
     Prepara un file per la Vetrina. Ritorna (voce, errore).
@@ -520,8 +545,10 @@ class Mondo(object):
         return voci
 
     # -- approvazioni ------------------------------------------------------
-    def chiedi_approvazione(self, comando, motivo):
-        if self.fullaccess:
+    def chiedi_approvazione(self, comando, motivo, sempre=False):
+        # 'sempre' salta l'autorizzazione completa. Un comando sbagliato resta
+        # sul tuo computer; una mail sbagliata e' gia' a casa di qualcun altro.
+        if self.fullaccess and not sempre:
             self.evento(u"Sistema", u"autorizzazione completa: eseguo senza chiedere", "#ff9f6b")
             return True
         rid = int(time.time() * 1000)
@@ -633,6 +660,23 @@ TOOLS_SPECIALISTA = [
                          "properties": {"titolo": {"type": "string"},
                                         "contenuto": {"type": "string"}},
                          "required": ["titolo", "contenuto"]},
+    },
+    {
+        "name": "manda_email",
+        "description": (
+            u"Manda una mail dall'indirizzo che l'utente ha collegato nel Quartier "
+            u"Generale. L'utente deve autorizzare OGNI invio dal mondo, anche con "
+            u"l'autorizzazione completa attiva: una mail parte e non torna indietro. "
+            u"Scrivi un testo finito e curato, non una bozza: quello che mandi e' "
+            u"quello che legge il destinatario."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "a": {"type": "string", "description": u"indirizzo del destinatario"},
+                "oggetto": {"type": "string"},
+                "testo": {"type": "string", "description": u"il corpo della mail"},
+            },
+            "required": ["a", "oggetto", "testo"]},
     },
     {
         "name": "pubblica_risultato",
@@ -833,6 +877,23 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
                                         "agent": nome_ag, "color": colore})
                     m.evento(nome_ag, u"anteprima: " + args.get("titolo", ""), colore)
                     contenuto = json.dumps({"ok": True})
+
+                elif b.name == "manda_email":
+                    a = str(args.get("a", "")).strip()
+                    ogg = str(args.get("oggetto", ""))
+                    corpo = str(args.get("testo", ""))
+                    m.evento(nome_ag, u"✉️ chiede di scrivere a " + a[:40], colore)
+                    ok = m.chiedi_approvazione(
+                        u"a: {}\noggetto: {}\n\n{}".format(a, ogg, corpo[:800]),
+                        u"mandare una mail a {}".format(a), sempre=True)
+                    if not ok:
+                        contenuto = json.dumps({"errore": u"l'utente non ha autorizzato l'invio"},
+                                               ensure_ascii=False)
+                    else:
+                        esito = manda_email(a, ogg, corpo)
+                        if esito.get("ok"):
+                            m.evento(nome_ag, u"✉️ mail partita per " + a[:40], colore)
+                        contenuto = json.dumps(esito, ensure_ascii=False)
 
                 elif b.name == "pubblica_risultato":
                     voce, err = registra_consegna(args.get("titolo", ""), args.get("file", ""),
@@ -1308,6 +1369,23 @@ TOOLS_PERSONALE = agente.TOOLS + [
                          "required": ["titolo", "contenuto"]},
     },
     {
+        "name": "manda_email",
+        "description": (
+            u"Manda una mail dall'indirizzo che l'utente ha collegato nel Quartier "
+            u"Generale. L'utente deve autorizzare OGNI invio dal mondo, anche con "
+            u"l'autorizzazione completa attiva: una mail parte e non torna indietro. "
+            u"Scrivi un testo finito e curato, non una bozza: quello che mandi e' "
+            u"quello che legge il destinatario."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "a": {"type": "string", "description": u"indirizzo del destinatario"},
+                "oggetto": {"type": "string"},
+                "testo": {"type": "string", "description": u"il corpo della mail"},
+            },
+            "required": ["a", "oggetto", "testo"]},
+    },
+    {
         "name": "pubblica_risultato",
         "description": (
             u"Fa VEDERE all'utente il lavoro finito, non solo descriverlo. "
@@ -1420,6 +1498,23 @@ def gestisci_messaggio_personale(client, memoria, testo_utente, storico):
                                         "body": (args.get("contenuto") or "")[:4000],
                                         "agent": u"Il tuo Agente", "color": ag["color"]})
                     contenuto = json.dumps({"ok": True})
+
+                elif b.name == "manda_email":
+                    a = str(args.get("a", "")).strip()
+                    ogg = str(args.get("oggetto", ""))
+                    corpo = str(args.get("testo", ""))
+                    m.evento(u"Il tuo Agente", u"✉️ chiede di scrivere a " + a[:40], ag["color"])
+                    ok = m.chiedi_approvazione(
+                        u"a: {}\noggetto: {}\n\n{}".format(a, ogg, corpo[:800]),
+                        u"mandare una mail a {}".format(a), sempre=True)
+                    if not ok:
+                        contenuto = json.dumps({"errore": u"l'utente non ha autorizzato l'invio"},
+                                               ensure_ascii=False)
+                    else:
+                        esito = manda_email(a, ogg, corpo)
+                        if esito.get("ok"):
+                            m.evento(u"Il tuo Agente", u"✉️ mail partita per " + a[:40], ag["color"])
+                        contenuto = json.dumps(esito, ensure_ascii=False)
 
                 elif b.name == "pubblica_risultato":
                     voce, err = registra_consegna(args.get("titolo", ""), args.get("file", ""),

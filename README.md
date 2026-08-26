@@ -133,6 +133,38 @@ sono un'altra cosa: vivono nel tuo account Claude e si autenticano con un access
 che non ti lascia una chiave da incollare, quindi non si attaccano qui. Per dare
 quelle capacità agli agenti serve il connettore del servizio con una sua chiave.
 
+## Collegare la posta
+
+Quartier Generale → **🔌 Strumenti agenti** → in cima, **Posta**.
+
+Ci sono i pulsanti **Accedi con Google** e **Accedi con Microsoft** (Outlook,
+Hotmail, Live). La password la scrivi sulla pagina del fornitore, non qui: da noi
+arriva solo un permesso, revocabile quando vuoi, limitato a leggere e mandare
+posta.
+
+**Un account alla volta.** Per usare il secondo indirizzo: *Esci*, poi rientri
+con quello.
+
+### La preparazione, una volta sola
+
+Google e Microsoft non lasciano che un programma acceda alla tua posta senza
+sapere chi è, quindi va registrato questo ecosistema. È gratis e non serve carta
+di credito. La scheda ti dà i passi e, soprattutto, **l'indirizzo di ritorno da
+incollare** — quello dipende dalla porta e non puoi indovinarlo.
+
+Se il tuo progetto Google è «in test», aggiungi il tuo indirizzo fra gli utenti
+di prova, altrimenti l'accesso viene rifiutato.
+
+### Come mandano gli agenti
+
+Con lo strumento `manda_email`, e **ogni singolo invio passa dalla tua
+autorizzazione** nel mondo — anche con l'autorizzazione completa attiva. Un
+comando sbagliato resta sul tuo computer; una mail sbagliata è già a casa di
+qualcun altro. Se preferisci senza conferma, si toglie.
+
+I permessi restano cifrati in `dati/account.enc`, con la stessa chiave della
+Cassaforte, e non escono dal tuo computer.
+
 ## La Vetrina: vedere il lavoro finito
 
 Quando un agente finisce qualcosa di guardabile — una pagina web, un'immagine,

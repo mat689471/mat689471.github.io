@@ -37,6 +37,26 @@
   .card > h2{font-family:"Chakra Petch",monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--faint);padding:15px 18px 11px;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;justify-content:space-between;gap:10px}
   .card .in{padding:16px 18px}
 
+  /* accesso ai fornitori di posta */
+  .acc-riga{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .acc-btn{display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:10px;
+           border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--ink);
+           font-size:14px;font-weight:500;cursor:pointer;transition:.15s;text-decoration:none}
+  .acc-btn:hover{background:rgba(255,255,255,.08);border-color:currentColor}
+  .acc-btn .pallino{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;
+                    font-size:13px;font-weight:700;color:#fff}
+  .acc-btn.spento{opacity:.55;cursor:not-allowed}
+  .acc-attivo{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:12px;
+              border:1px solid rgba(76,224,165,.4);background:rgba(76,224,165,.08);flex-wrap:wrap}
+  .acc-attivo .mail{font-weight:600;font-size:15px}
+  .acc-attivo .chi{font-size:12px;color:var(--muted)}
+  .acc-setup{border-top:1px solid var(--border-soft);margin-top:16px;padding-top:14px}
+  .acc-setup summary{cursor:pointer;font-size:13px;color:var(--muted);padding:4px 0}
+  .acc-setup summary:hover{color:var(--ink)}
+  .acc-passi{font-size:12.5px;color:var(--muted);line-height:1.75;margin:10px 0 14px;padding-left:20px}
+  .acc-passi code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:5px;
+                  font-family:"JetBrains Mono",monospace;font-size:11.5px;word-break:break-all}
+
   /* interruttori degli strumenti */
   .srv{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--border-soft)}
   .srv:last-child{border-bottom:0}
@@ -344,6 +364,25 @@
   <section id="t-strumenti" class="hide">
 
     <div class="card">
+      <h2>Posta · account collegato <span class="chip" id="accStato">—</span></h2>
+      <div class="in">
+        <div id="accBox"></div>
+        <div id="msgAcc" class="nota" style="margin-top:12px"></div>
+
+        <details class="acc-setup" id="accSetup">
+          <summary>⚙️ Preparazione — da fare una volta sola, per fornitore</summary>
+          <p class="nota" style="margin:10px 0">
+            Google e Microsoft non lasciano che un programma acceda alla tua posta
+            senza sapere chi è. Devi registrare <b>questo</b> ecosistema una volta
+            sola e incollare qui i due codici che ti danno. È gratis e non serve
+            carta di credito.
+          </p>
+          <div id="accFornitori"></div>
+        </details>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Competenze · Skill <span class="chip" id="nComp">—</span></h2>
       <div class="in">
         <p class="nota" style="margin-bottom:12px">
@@ -453,9 +492,122 @@
       document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute("aria-selected", String(x===b)));
       for(const s of ["chiavi","incassi","progetti","strumenti"]) $("#t-"+s).classList.toggle("hide", s!==b.dataset.tab);
       if(b.dataset.tab==="progetti") disegnaGrafico();
-      if(b.dataset.tab==="strumenti") caricaStrumenti();
+      if(b.dataset.tab==="strumenti"){ caricaStrumenti(); caricaAccount(); }
     };
   });
+
+  // ---------- POSTA: accedi con Google / Outlook ----------
+  async function caricaAccount(){
+    let d;
+    try{ d = await api("/api/account"); }
+    catch{ $("#accBox").innerHTML='<p class="nota">Ecosistema non avviato.</p>'; return; }
+
+    const box=$("#accBox"); box.replaceChildren();
+
+    if(d.attivo){
+      $("#accStato").textContent="collegato";
+      $("#accStato").className="chip attivo";
+      const riga=document.createElement("div"); riga.className="acc-attivo";
+      const t=document.createElement("div"); t.style.flex="1";
+      const m=document.createElement("div"); m.className="mail"; m.textContent=d.attivo.email;
+      const c=document.createElement("div"); c.className="chi";
+      c.textContent=d.attivo.nome+" · collegato il "+(d.attivo.entrato||"").slice(0,10).split("-").reverse().join("/");
+      t.append(m,c);
+      const esci=document.createElement("button");
+      esci.className="btn ghost"; esci.textContent="Esci";
+      esci.title="Per mandare dall'altro indirizzo: esci, poi rientra con quello";
+      esci.onclick=async()=>{
+        await post("/api/account",{azione:"esci"});
+        msg("#msgAcc","Uscito. Ora puoi entrare con l'altro indirizzo.");
+        caricaAccount();
+      };
+      riga.append(t,esci); box.appendChild(riga);
+      const nota=document.createElement("p"); nota.className="nota"; nota.style.marginTop="12px";
+      nota.textContent="Gli agenti possono mandare posta da questo indirizzo, ma ogni invio "
+                     + "passa prima dalla tua autorizzazione nel mondo. Per usare l'altro "
+                     + "account esci e rientra: uno alla volta.";
+      box.appendChild(nota);
+    } else {
+      $("#accStato").textContent="nessuno";
+      $("#accStato").className="chip";
+      const riga=document.createElement("div"); riga.className="acc-riga";
+      for(const f of d.fornitori){
+        const b=document.createElement(f.configurato?"a":"button");
+        b.className="acc-btn"+(f.configurato?"":" spento");
+        if(f.configurato){ b.href="/oauth/avvia?fornitore="+encodeURIComponent(f.id); }
+        else { b.disabled=true; b.title="Prima la preparazione qui sotto"; }
+        const p=document.createElement("span"); p.className="pallino";
+        p.style.background=f.colore; p.textContent=f.nome[0];
+        const t=document.createElement("span");
+        t.textContent="Accedi con "+f.nome;
+        const s=document.createElement("span");
+        s.style.cssText="font-size:11.5px;color:var(--faint);margin-left:2px";
+        s.textContent="("+f.posta+")";
+        b.append(p,t,s); riga.appendChild(b);
+      }
+      box.appendChild(riga);
+      const nota=document.createElement("p"); nota.className="nota";
+      nota.textContent=d.fornitori.some(f=>f.configurato)
+        ? "La password la scrivi sulla pagina del fornitore, non qui: da noi arriva solo un permesso, che puoi revocare quando vuoi."
+        : "I pulsanti si accendono dopo la preparazione qui sotto.";
+      box.appendChild(nota);
+    }
+
+    // la preparazione, un blocco per fornitore
+    const setup=$("#accFornitori"); setup.replaceChildren();
+    for(const f of d.fornitori){
+      const w=document.createElement("div");
+      w.style.cssText="margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--border-soft)";
+      const h=document.createElement("div");
+      h.style.cssText="font-weight:600;margin-bottom:8px";
+      h.textContent=f.nome+(f.configurato?" ✓":"");
+      const ol=document.createElement("ol"); ol.className="acc-passi";
+      const passi=[
+        ['Apri la console: ', f.console, ''],
+        ['Crea credenziali di tipo ', null, f.tipoApp],
+        ['Come indirizzo di ritorno incolla: ', null, d.redirect],
+        ['Copia qui sotto i due codici che ti dà.', null, ''],
+      ];
+      for(const [testo, link, codice] of passi){
+        const li=document.createElement("li");
+        li.append(document.createTextNode(testo));
+        if(link){ const a=document.createElement("a"); a.href=link; a.target="_blank";
+                  a.rel="noopener"; a.textContent=link; li.appendChild(a); }
+        if(codice){ const c=document.createElement("code"); c.textContent=codice; li.appendChild(c); }
+        ol.appendChild(li);
+      }
+      const riga=document.createElement("div"); riga.className="row";
+      const c1=document.createElement("div");
+      c1.innerHTML='<label>ID client</label><input>';
+      // ogni fornitore ha una forma sua: il suggerimento aiuta a capire
+      // se si sta incollando il codice giusto
+      c1.querySelector("input").placeholder = f.id==="google"
+        ? "…apps.googleusercontent.com" : "un codice tipo 8f3c1a2e-…";
+      const c2=document.createElement("div");
+      c2.innerHTML='<label>Segreto client</label><input type="password" placeholder="incollalo qui">';
+      const btn=document.createElement("button"); btn.className="btn"; btn.textContent="Salva";
+      btn.onclick=async()=>{
+        const id=c1.querySelector("input").value.trim(), seg=c2.querySelector("input").value.trim();
+        if(!id) return msg("#msgAcc","Serve almeno l'ID client.","#ff9f6b");
+        try{
+          const r=await post("/api/account",{azione:"configura",fornitore:f.id,clientId:id,clientSecret:seg});
+          if(r.ok===false) throw new Error(r.errore||"non riuscito");
+          c1.querySelector("input").value=c2.querySelector("input").value="";
+          msg("#msgAcc",f.nome+" pronto: adesso il pulsante «Accedi con "+f.nome+"» funziona.","#4ce0a5");
+          caricaAccount();
+        }catch(e){ msg("#msgAcc","Non riuscito: "+e.message,"#ff9f6b"); }
+      };
+      riga.append(c1,c2,btn);
+      w.append(h,ol,riga);
+      if(f.nota){
+        const nt=document.createElement("p");
+        nt.className="nota"; nt.style.cssText="margin-top:10px;color:var(--gold)";
+        nt.textContent="⚠ "+f.nota;
+        w.appendChild(nt);
+      }
+      setup.appendChild(w);
+    }
+  }
 
   // ---------- STRUMENTI: competenze e MCP ----------
   async function caricaStrumenti(){

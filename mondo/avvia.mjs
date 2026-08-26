@@ -19,6 +19,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { Cassaforte } from "./vault.mjs";
 import { Registro } from "./ledger.mjs";
 import { Strumenti } from "./strumenti.mjs";
+import { Account } from "./account.mjs";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { exec } from "node:child_process";
@@ -53,6 +54,7 @@ const DATI = path.join(ROOT, "..", "dati");   // cassaforte + contabilità (fuor
 const cassaforte = new Cassaforte(DATI);
 const registro = new Registro(DATI);
 const strumenti = new Strumenti(path.join(ROOT, ".."));
+const account = new Account(DATI);
 
 function json(res, code, obj) { res.writeHead(code, JSONH); res.end(JSON.stringify(obj)); }
 function leggiCorpo(req) {
@@ -151,6 +153,46 @@ const server = http.createServer(async (req, res) => {
       return json(res, 405, { ok: false });
     }
 
+    // ---- ACCOUNT DI POSTA: «Accedi con Google / Outlook» ------------------
+    // Qui passano permessi di accesso alla posta: solo dal PC stesso.
+    if (apiPath === "/oauth/avvia") {
+      if (!daLocale(req)) return json(res, 403, { ok: false, errore: "solo da questo computer" });
+      try {
+        const p = new URL(req.url, "http://x").searchParams.get("fornitore");
+        res.writeHead(302, { Location: account.urlAccesso(p) });
+        return res.end();
+      } catch (e) { return paginaEsito(res, false, e.message); }
+    }
+
+    // Dove il fornitore ci rimanda dopo che hai scelto l'account.
+    if (apiPath === "/oauth/callback") {
+      const q = new URL(req.url, "http://x").searchParams;
+      if (q.get("error"))
+        return paginaEsito(res, false, q.get("error_description") || q.get("error"));
+      try {
+        const r = await account.completa(q.get("code"), q.get("state"));
+        console.log(`\n[mondo] account collegato: ${r.email} (${r.fornitore})`);
+        return paginaEsito(res, true, r.email);
+      } catch (e) { return paginaEsito(res, false, e.message); }
+    }
+
+    if (apiPath === "/api/account" || apiPath === "/api/account/manda") {
+      if (!daLocale(req)) return json(res, 403, { ok: false, errore: "solo da questo computer" });
+      if (apiPath === "/api/account" && req.method === "GET") return json(res, 200, account.vista());
+      if (req.method === "POST") {
+        const p = await leggiCorpo(req);
+        try {
+          if (apiPath === "/api/account/manda") return json(res, 200, await account.manda(p));
+          switch (p.azione) {
+            case "configura": return json(res, 200, await account.configura(p.fornitore, p.clientId, p.clientSecret));
+            case "esci":      return json(res, 200, await account.esci());
+            default:          return json(res, 400, { ok: false, errore: "azione sconosciuta" });
+          }
+        } catch (e) { return json(res, 400, { ok: false, errore: e.message }); }
+      }
+      return json(res, 405, { ok: false });
+    }
+
     // ---- STRUMENTI: competenze (Skill) e server MCP -----------------------
     // Accendere un MCP significa dare nuovi poteri agli agenti: solo da qui.
     if (apiPath === "/api/strumenti") {
@@ -222,6 +264,21 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+/** La scheda che si apre al ritorno dal fornitore: dice com'e' andata. */
+function paginaEsito(res, ok, testo) {
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  res.writeHead(ok ? 200 : 400, { "Content-Type": "text/html; charset=utf-8" });
+  res.end(`<!doctype html><meta charset="utf-8"><title>${ok ? "Collegato" : "Non riuscito"}</title>
+<style>body{font-family:system-ui,sans-serif;background:#0a1020;color:#e9edf8;display:grid;
+place-items:center;height:100vh;margin:0;text-align:center;padding:24px}
+.c{max-width:460px}h1{font-size:22px;margin:0 0 10px}p{color:#8a96b3;line-height:1.6;margin:0 0 8px}
+b{color:${ok ? "#4ce0a5" : "#ff9f6b"}}</style>
+<div class="c"><h1>${ok ? "✓ Account collegato" : "Non e' andata"}</h1>
+<p><b>${esc(testo)}</b></p>
+<p>${ok ? "Puoi chiudere questa scheda e tornare al Quartier Generale."
+        : "Chiudi questa scheda e riprova dal Quartier Generale."}</p></div>`);
+}
+
 function apriBrowser(url) {
   const cmd = process.platform === "win32" ? `start "" "${url}"`
             : process.platform === "darwin" ? `open "${url}"`
@@ -238,6 +295,9 @@ function ascolta(port) {
     const url = `http://localhost:${port}/`;
     await cassaforte.init();
     await registro.init();
+    // L'indirizzo di ritorno deve combaciare con quello registrato sulla
+    // console del fornitore, e contiene la porta: si sa solo adesso.
+    await account.init(`http://localhost:${port}/oauth/callback`);
     console.log("\n===============================================");
     console.log("  L'Ecosistema è in funzione!");
     console.log("  Mondo:          " + url);
