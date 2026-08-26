@@ -39,7 +39,9 @@ import urllib.error
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
-import agente  # riusa esecuzione comandi, log e classificazione
+import agente       # riusa esecuzione comandi, log e classificazione
+import competenze   # le Skill di Claude Code
+import mcp          # gli strumenti dei server MCP (ruflo)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MONDO_DIR = os.path.join(BASE_DIR, "mondo")
@@ -195,7 +197,9 @@ class Mondo(object):
         self.resoconto = None
         self.lavori = []
         self.sessione = None
-        self.chiavi = []   # nomi (mai i valori) delle chiavi in Cassaforte
+        self.chiavi = []          # nomi (mai i valori) delle chiavi in Cassaforte
+        self.competenze = []      # Skill di Claude Code a disposizione
+        self.strumenti_mcp = []   # strumenti offerti dai server MCP
         self.boss = {"id": "boss", "name": u"Orchestratore",
                      "status": "idle", "task": None, "thinking": None}
         self._ultimo_id_inbox = self._id_inbox_corrente()
@@ -235,6 +239,8 @@ class Mondo(object):
                 "fullaccess": self.fullaccess,
                 "report": self.resoconto,
                 "chiavi": self.chiavi,
+                "competenze": self.competenze,
+                "strumentiMcp": self.strumenti_mcp,
                 "sessione": {"id": self.sessione["id"], "titolo": self.sessione["titolo"]} if self.sessione else None,
                 "sessioni": self.archivio.elenco(),
                 "stats": {
@@ -510,6 +516,30 @@ TOOLS_SPECIALISTA = [
         },
     },
     {
+        "name": "leggi_competenza",
+        "description": (u"Apre una Skill dell'utente e ne restituisce le istruzioni complete. "
+                        u"Usala PRIMA di lavorare quando una competenza elencata riguarda il "
+                        u"tuo compito: contiene il metodo che l'utente vuole si segua."),
+        "input_schema": {"type": "object",
+                         "properties": {"nome": {"type": "string"}},
+                         "required": ["nome"]},
+    },
+    {
+        "name": "usa_strumento_mcp",
+        "description": (u"Richiama uno degli strumenti MCP elencati (per esempio quelli di "
+                        u"ruflo). Piu' mirato di un comando PowerShell quando esiste lo "
+                        u"strumento adatto."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "server": {"type": "string", "description": u"il server fra parentesi quadre nell'elenco"},
+                "strumento": {"type": "string"},
+                "argomenti": {"type": "object", "description": u"secondo lo schema dello strumento"},
+            },
+            "required": ["server", "strumento"],
+        },
+    },
+    {
         "name": "consegna",
         "description": u"Consegna il risultato all'Orchestratore e chiudi il tuo compito.",
         "input_schema": {"type": "object",
@@ -517,6 +547,9 @@ TOOLS_SPECIALISTA = [
                          "required": ["riepilogo"]},
     },
 ]
+
+# Raccolte una volta all'avvio: nomi e descrizioni finiscono nei prompt.
+COMPETENZE = []
 
 
 def _prompt_specialista(ag):
@@ -530,7 +563,9 @@ def _prompt_specialista(ag):
         u"Se ti serve una competenza che non hai, usa 'chiedi_a_collega'.",
         u"Quando hai finito chiama 'consegna': sara' l'Orchestratore a parlare con l'utente.",
         u"Sii concreto e sintetico. Non chiedere permessi: ci pensa il sistema.",
-    ] + _righe_chiavi())
+    ] + _righe_chiavi()
+      + competenze.righe_per_prompt(COMPETENZE)
+      + mcp.righe_per_prompt())
 
 
 def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, profondita=0):
@@ -613,6 +648,24 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
                     contenuto = json.dumps({"collega": nome_altro, "risposta": risp},
                                            ensure_ascii=False)[:4000]
 
+            elif b.name == "leggi_competenza":
+                nome_c = args.get("nome", "")
+                m.agg(aid, message=u"consulta «{}»".format(nome_c)[:60])
+                m.evento(nome_ag, u"📖 apre la competenza «{}»".format(nome_c), colore)
+                sk = competenze.leggi(nome_c)
+                contenuto = (json.dumps(sk, ensure_ascii=False)[:22000] if sk
+                             else json.dumps({"errore": u"competenza non trovata: " + nome_c},
+                                             ensure_ascii=False))
+
+            elif b.name == "usa_strumento_mcp":
+                srv = args.get("server", "")
+                strum = args.get("strumento", "")
+                m.agg(aid, message=u"{}·{}".format(srv, strum)[:60])
+                m.evento(nome_ag, u"🔌 {} → {}".format(srv, strum), colore)
+                with _lock_esecuzione:
+                    esito = mcp.chiama(srv, strum, args.get("argomenti") or {})
+                contenuto = json.dumps({"risultato": esito}, ensure_ascii=False)[:9000]
+
             elif b.name == "consegna":
                 riepilogo = args.get("riepilogo", "")
                 finito = True
@@ -687,6 +740,15 @@ TOOLS_ORCHESTRATORE = [
                          "required": ["testo"]},
     },
     {
+        "name": "leggi_competenza",
+        "description": (u"Apre una Skill dell'utente e ne restituisce le istruzioni complete. "
+                        u"Consultala quando riguarda la richiesta, per capire come impostare "
+                        u"il lavoro prima di assegnarlo."),
+        "input_schema": {"type": "object",
+                         "properties": {"nome": {"type": "string"}},
+                         "required": ["nome"]},
+    },
+    {
         "name": "resoconto",
         "description": u"Produce un resoconto del lavoro svolto e lo mostra all'utente.",
         "input_schema": {"type": "object",
@@ -728,6 +790,8 @@ def _prompt_orchestratore(memoria, ripresa=None):
         testo.append(ripresa)
         testo.append(u"Riprendi da dove si era fermato, senza ricominciare da capo.")
     testo.extend(_righe_chiavi())
+    testo.extend(competenze.righe_per_prompt(COMPETENZE))
+    testo.extend(mcp.righe_per_prompt())
     return u"\n".join(testo)
 
 
@@ -808,6 +872,14 @@ def gestisci_messaggio(client, memoria, testo_utente, storico, ripresa=None):
             if b.name == "rispondi":
                 m.dico(u"Orchestratore", args.get("testo", ""), "boss", "#f5b942")
                 contenuto = json.dumps({"ok": True})
+            elif b.name == "leggi_competenza":
+                nome_c = args.get("nome", "")
+                m.pensa(u"consulto la competenza «{}»".format(nome_c))
+                m.evento(u"Orchestratore", u"📖 consulta «{}»".format(nome_c), "#f5b942")
+                sk = competenze.leggi(nome_c)
+                contenuto = (json.dumps(sk, ensure_ascii=False)[:22000] if sk
+                             else json.dumps({"errore": u"competenza non trovata: " + nome_c},
+                                             ensure_ascii=False))
             elif b.name == "resoconto":
                 with m._lock:
                     m.resoconto = {"text": args.get("testo", ""), "ts": _ora()}
@@ -835,7 +907,7 @@ def gestisci_messaggio(client, memoria, testo_utente, storico, ripresa=None):
 # ===========================================================================
 
 def avvia(client, memoria):
-    global MONDO, ARCHIVIO
+    global MONDO, ARCHIVIO, COMPETENZE
     ARCHIVIO = Archivio()
     MONDO = Mondo(ARCHIVIO)
     MONDO.avvia_battito()
@@ -844,8 +916,24 @@ def avvia(client, memoria):
     nomi = carica_chiavi()
     interrotte = [s for s in ARCHIVIO.dati["sessioni"] if s["stato"] == "interrotta"]
 
+    # Le Skill di Claude Code diventano competenze dell'ecosistema.
+    COMPETENZE = competenze.elenca()
+    MONDO.competenze = [{"nome": s["nome"], "descrizione": s["descrizione"], "fonte": s["fonte"]}
+                        for s in COMPETENZE]
+
+    # I server MCP (ruflo) portano i loro strumenti agli agenti.
+    print(u"")
+    avviati = mcp.avvia_tutti(lambda t: print(u" MCP: " + t))
+    MONDO.strumenti_mcp = [{"server": t["server"], "nome": t["nome"],
+                            "descrizione": t["descrizione"]} for t in mcp.catalogo()]
+    MONDO.pubblica()
+
     print(u"\n Ecosistema avviato. L'Orchestratore e' in ascolto.")
     print(u" Ruoli disponibili: {}".format(len(RUOLI)))
+    print(u" Competenze (Skill): {}".format(len(COMPETENZE)))
+    print(u" Strumenti MCP: {}{}".format(
+        len(MONDO.strumenti_mcp),
+        u" da " + u", ".join(avviati) if avviati else u" (nessun server attivo in mcp.json)"))
     if nomi:
         print(u" Cassaforte: {} chiavi disponibili agli agenti.".format(len(nomi)))
     else:
@@ -909,4 +997,5 @@ def avvia(client, memoria):
         except (EOFError, KeyboardInterrupt):
             print(u"\nChiusura dell'ecosistema. Le sessioni restano salvate.")
             MONDO.chiudi_sessione("interrotta")
+            mcp.ferma_tutti()
             break

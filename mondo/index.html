@@ -141,7 +141,10 @@
   .kv b{color:var(--muted);font-weight:500}
   .note{font-size:12px;color:var(--faint);line-height:1.5;border-top:1px solid var(--border-soft);padding-top:10px}
 
-  .chiave{font-family:"JetBrains Mono",monospace;font-size:10.5px;padding:5px 9px;border-radius:8px;border:1px solid rgba(157,123,255,.4);background:rgba(157,123,255,.1);color:var(--violet);white-space:nowrap}
+  .dot-chip{font-family:"JetBrains Mono",monospace;font-size:10.5px;padding:5px 9px;border-radius:8px;white-space:nowrap;cursor:default}
+  .dot-chip.chiave{border:1px solid rgba(157,123,255,.4);background:rgba(157,123,255,.1);color:var(--violet)}
+  .dot-chip.comp{border:1px solid rgba(76,224,165,.4);background:rgba(76,224,165,.1);color:var(--good)}
+  .dot-chip.mcp{border:1px solid rgba(53,208,214,.4);background:rgba(53,208,214,.1);color:var(--cyan)}
 
   /* tabella dei lavori */
   .sessTable{display:flex;flex-direction:column;max-height:58vh;overflow-y:auto}
@@ -202,9 +205,9 @@
       <h2>Anteprima lavoro <span id="prevAgent" style="color:var(--muted)"></span></h2>
       <div class="body" id="preview"><div class="empty">Quando un agente produce qualcosa di consultabile, l'anteprima compare qui.</div></div>
     </div>
-    <div class="panel" id="panelChiavi" style="flex:0 0 auto;display:none">
-      <h2>Chiavi in dotazione <span id="nChiaviMondo" style="color:var(--muted)"></span></h2>
-      <div class="body" id="chiaviBox" style="flex-direction:row;flex-wrap:wrap;gap:6px;padding:10px 11px"></div>
+    <div class="panel" id="panelDotazione" style="flex:0 0 auto;display:none">
+      <h2>Dotazione <span id="nDotazione" style="color:var(--muted)"></span></h2>
+      <div class="body" id="dotazioneBox" style="flex-direction:row;flex-wrap:wrap;gap:6px;padding:10px 11px"></div>
     </div>
   </div>
 
@@ -505,8 +508,8 @@ window.ECO_CONFIG = {
     // archivio dei lavori
     if(Array.isArray(d.sessioni)){ sessioni=d.sessioni; sessioneCorrente=d.sessione||null; renderSessioni(); }
 
-    // chiavi disponibili agli agenti (solo i nomi)
-    if(Array.isArray(d.chiavi)) renderChiavi(d.chiavi);
+    // cosa hanno in dotazione gli agenti: chiavi (solo i nomi), Skill, strumenti MCP
+    renderDotazione(d.chiavi, d.competenze, d.strumentiMcp);
 
     setMode(d.orchestratore ? "live" : "half", d._fonte);
     renderRoster(); updateStats();
@@ -865,13 +868,20 @@ window.ECO_CONFIG = {
     prevEl.innerHTML='<div class="prev-head" style="color:'+(preview.color||"#e9edf8")+'">'+esc(preview.title)+'</div>'+
                      '<div class="prev-body">'+esc(preview.body)+'</div>';
   }
-  let chiaviViste="";
-  function renderChiavi(nomi){
-    const firma=nomi.join("|"); if(firma===chiaviViste) return; chiaviViste=firma;
-    const box=document.getElementById("chiaviBox"), pan=document.getElementById("panelChiavi");
-    pan.style.display=nomi.length?"flex":"none";
-    document.getElementById("nChiaviMondo").textContent=nomi.length;
-    box.innerHTML=nomi.map(n=>'<span class="chiave" title="Gli agenti la usano come $env:'+esc(n)+' senza vederne il valore">🔑 '+esc(n)+'</span>').join("");
+  // Cosa hanno in mano gli agenti: chiavi, competenze (Skill) e strumenti MCP.
+  let dotazioneVista="";
+  function renderDotazione(chiavi,comp,mcpT){
+    chiavi=chiavi||[]; comp=comp||[]; mcpT=mcpT||[];
+    const firma=chiavi.join("|")+"#"+comp.map(c=>c.nome).join("|")+"#"+mcpT.map(t=>t.server+":"+t.nome).join("|");
+    if(firma===dotazioneVista) return; dotazioneVista=firma;
+    const box=document.getElementById("dotazioneBox"), pan=document.getElementById("panelDotazione");
+    const tot=chiavi.length+comp.length+mcpT.length;
+    pan.style.display=tot?"flex":"none";
+    document.getElementById("nDotazione").textContent=tot;
+    box.innerHTML=
+      chiavi.map(n=>'<span class="dot-chip chiave" title="Usata come $env:'+esc(n)+', senza vederne il valore">🔑 '+esc(n)+'</span>').join("")+
+      comp.map(c=>'<span class="dot-chip comp" title="'+esc(c.descrizione||"")+'">📖 '+esc(c.nome)+'</span>').join("")+
+      mcpT.map(t=>'<span class="dot-chip mcp" title="'+esc(t.descrizione||"")+'">🔌 '+esc(t.nome)+'</span>').join("");
   }
 
   function updateStats(){

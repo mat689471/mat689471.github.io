@@ -192,3 +192,68 @@ soffrono degli errori di arrotondamento dei decimali.
 
 Dati privati creati a runtime (mai versionati): `dati/cassaforte.enc`,
 `dati/.masterkey`, `dati/progetti.json`.
+
+---
+
+# Competenze e strumenti esterni
+
+L'ecosistema non vive isolato: può attingere alle **Skill che hai scritto per
+Claude Code** e agli **strumenti dei server MCP** (ruflo compreso).
+
+## 📖 Le tue Skill diventano competenze degli agenti
+
+Una skill di Claude Code è una cartella con dentro un `SKILL.md`. L'ecosistema
+le cerca da solo in:
+
+- `~/.claude/skills/<nome>/SKILL.md` — le tue skill personali
+- `~/.claude/plugins/.../skills/<nome>/SKILL.md` — quelle dei plugin (ruflo)
+- `.claude/skills/<nome>/SKILL.md` — quelle del progetto
+
+Funziona **come Claude Code**: nel prompt degli agenti finiscono solo **nome e
+descrizione** (poche righe), e il contenuto completo viene letto **solo quando
+serve**, con lo strumento `leggi_competenza`. Così le competenze che hai già
+scritto valgono anche qui, senza riscriverle e senza appesantire ogni richiesta.
+
+Nel mondo le vedi nel pannello **Dotazione**, con l'icona 📖.
+
+> Il contenuto di una skill finisce nel prompt di un agente. Sono file tuoi, sul
+> tuo computer — lo stesso rapporto di fiducia che hai già con Claude Code — ma
+> vale la pena saperlo.
+
+## 🔌 Gli strumenti MCP (ruflo)
+
+Un server MCP è un programma che espone strumenti tramite un protocollo preciso.
+`mcp.py` è il traduttore che permette agli agenti di usarli.
+
+**Per accendere ruflo:** apri `mcp.json` e metti `"attivo": true`:
+
+```json
+{ "server": { "ruflo": { "attivo": true, "comando": "npx",
+  "argomenti": ["-y", "ruflo@latest", "mcp", "start"] } } }
+```
+
+Poi riavvia `python agente.py --mondo`. Il terminale ti dirà quanti strumenti ha
+trovato, e compariranno nella **Dotazione** con l'icona 🔌. Gli agenti li
+chiamano con `usa_strumento_mcp` quando sono più adatti di un comando PowerShell.
+
+⚠️ La prima volta `npx` scarica il pacchetto: l'avvio può richiedere un minuto.
+Se un server non parte, l'ecosistema **continua a funzionare senza** quei
+strumenti — te lo dice e prosegue.
+
+Puoi aggiungere qualsiasi altro server MCP nello stesso file.
+
+## Cosa NON è collegabile
+
+I **connettori di claude.ai** (Gmail, Drive, Calendar…) sono legati al tuo
+account e vivono dentro claude.ai. Gli agenti girano sul tuo computer e parlano
+con l'API: quei connettori lì non esistono, e nessun codice locale può usarli al
+posto tuo. Se ti serve una di quelle funzioni nell'ecosistema, la strada è un
+server MCP che faccia quel lavoro (con le sue credenziali in Cassaforte).
+
+## I file
+
+| File | A cosa serve |
+|---|---|
+| `competenze.py` | Trova e legge le Skill di Claude Code |
+| `mcp.py` | Client MCP: avvia i server e inoltra le chiamate |
+| `mcp.json` | Quali server MCP accendere |

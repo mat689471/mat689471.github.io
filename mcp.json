@@ -1,0 +1,22 @@
+{
+  "_come_funziona": "Server MCP che l'ecosistema deve avviare. Metti 'attivo': true su quelli che vuoi usare, poi riavvia 'python agente.py --mondo': i loro strumenti compaiono nel mondo e gli agenti possono usarli.",
+
+  "server": {
+    "ruflo": {
+      "_nota": "Gli strumenti di ruflo (claude-flow): swarm, memoria, coordinamento. La prima volta npx scarica il pacchetto e ci mette un po'.",
+      "attivo": false,
+      "comando": "npx",
+      "argomenti": ["-y", "ruflo@latest", "mcp", "start"]
+    }
+  },
+
+  "_altri_esempi": {
+    "un_server_qualsiasi": {
+      "attivo": false,
+      "comando": "node",
+      "argomenti": ["percorso/al/server.mjs"],
+      "ambiente": { "UNA_VARIABILE": "valore" },
+      "cartella": "."
+    }
+  }
+}
