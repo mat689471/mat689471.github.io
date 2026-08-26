@@ -25,6 +25,8 @@ import json
 import time
 import threading
 import subprocess
+import urllib.error
+import urllib.request
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FILE_CONFIG = os.path.join(BASE_DIR, "mcp.json")
@@ -32,6 +34,10 @@ FILE_CONFIG = os.path.join(BASE_DIR, "mcp.json")
 TIMEOUT_AVVIO = 60      # i server scaricati con npx la prima volta sono lenti
 TIMEOUT_CHIAMATA = 120
 MAX_RISULTATO = 8000
+
+# Nomi -> valori delle chiavi di Cassaforte. Lo riempie orchestra.py all'avvio
+# e a ogni ricarica: qui dentro non si legge mai un file di credenziali.
+CHIAVI = {}
 
 
 class Server(object):
@@ -136,6 +142,137 @@ class Server(object):
         return _testo_risultato(risp)
 
 
+class ServerHttp(object):
+    """
+    Un server MCP che vive su internet, non sul tuo computer.
+
+    Stessa faccia di Server (avvia, chiama, strumenti), altro mezzo di trasporto:
+    JSON-RPC dentro richieste HTTP invece che su stdin/stdout. E' cosi' che si
+    raggiungono i servizi ospitati - generazione di video, audio, immagini - che
+    non hanno un programma da installare.
+
+    La chiave NON sta in mcp.json: li' c'e' solo il suo nome. Il valore lo tira
+    fuori la Cassaforte al momento della chiamata, cosi' un file di
+    configurazione condiviso per sbaglio non porta con se' le credenziali.
+    """
+
+    def __init__(self, nome, url, chiave=None, intestazione=None, prefisso=None, intestazioni=None):
+        self.nome = nome
+        self.url = url
+        self.chiave = chiave
+        self.intestazione = intestazione or "Authorization"
+        self.prefisso = "Bearer " if prefisso is None else prefisso
+        self.extra = dict(intestazioni or {})
+        self.strumenti = []
+        self.errore = None
+        self.sessione = None
+        self._id = 0
+        self._lock = threading.Lock()
+        self._pronto = False
+
+    # -- ciclo di vita -----------------------------------------------------
+    def avvia(self):
+        if self.chiave and not CHIAVI.get(self.chiave):
+            self.errore = (u"manca la chiave «{}» in Cassaforte "
+                           u"(Quartier Generale, scheda Cassaforte)".format(self.chiave))
+            return False
+        try:
+            self._richiesta("initialize", {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "ecosistema", "version": "1.0"},
+            }, timeout=TIMEOUT_AVVIO)
+            self._notifica("notifications/initialized")
+            risp = self._richiesta("tools/list", {}, timeout=TIMEOUT_AVVIO)
+            self.strumenti = (risp or {}).get("tools", []) or []
+            self._pronto = True
+            return True
+        except Exception as e:
+            self.errore = u"non raggiungibile: {}".format(e)
+            return False
+
+    def ferma(self):
+        self._pronto = False
+
+    def vivo(self):
+        return self._pronto
+
+    # -- protocollo --------------------------------------------------------
+    def _testate(self):
+        h = {
+            "Content-Type": "application/json",
+            # Il trasporto HTTP di MCP puo' rispondere in JSON o in SSE:
+            # dichiariamo di accettare entrambi e ci adattiamo alla risposta.
+            "Accept": "application/json, text/event-stream",
+        }
+        h.update(self.extra)
+        if self.chiave:
+            h[self.intestazione] = self.prefisso + CHIAVI.get(self.chiave, "")
+        if self.sessione:
+            h["Mcp-Session-Id"] = self.sessione
+        return h
+
+    def _posta(self, corpo, timeout):
+        dati = json.dumps(corpo, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(self.url, data=dati, headers=self._testate(), method="POST")
+        try:
+            risp = urllib.request.urlopen(req, timeout=timeout)
+        except urllib.error.HTTPError as e:
+            testo = (e.read() or b"")[:400].decode("utf-8", "replace")
+            raise RuntimeError(u"HTTP {}: {}".format(e.code, testo.strip() or e.reason))
+        except urllib.error.URLError as e:
+            raise RuntimeError(u"{}".format(e.reason))
+        sid = risp.headers.get("Mcp-Session-Id")
+        if sid:
+            self.sessione = sid
+        return risp
+
+    def _notifica(self, metodo, parametri=None):
+        with self._lock:
+            try:
+                self._posta({"jsonrpc": "2.0", "method": metodo, "params": parametri or {}},
+                            TIMEOUT_AVVIO).read()
+            except Exception:
+                pass          # una notifica non ha risposta: se cade, pazienza
+
+    def _richiesta(self, metodo, parametri, timeout=TIMEOUT_CHIAMATA):
+        with self._lock:
+            self._id += 1
+            rid = self._id
+            risp = self._posta({"jsonrpc": "2.0", "id": rid, "method": metodo,
+                                "params": parametri}, timeout)
+            tipo = (risp.headers.get("Content-Type") or "").lower()
+            msg = self._leggi_sse(risp, rid) if "text/event-stream" in tipo \
+                  else json.loads((risp.read() or b"{}").decode("utf-8", "replace") or "{}")
+            if not msg:
+                raise RuntimeError(u"nessuna risposta")
+            if "error" in msg:
+                err = msg["error"]
+                raise RuntimeError(str(err.get("message", err)) if isinstance(err, dict) else str(err))
+            return msg.get("result")
+
+    def _leggi_sse(self, risp, rid):
+        """Estrae dal flusso SSE la risposta con il nostro id."""
+        for riga in risp:
+            riga = riga.decode("utf-8", "replace").strip()
+            if not riga.startswith("data:"):
+                continue
+            pezzo = riga[5:].strip()
+            if not pezzo or pezzo == "[DONE]":
+                continue
+            try:
+                msg = json.loads(pezzo)
+            except ValueError:
+                continue
+            if msg.get("id") == rid:
+                return msg
+        return None
+
+    def chiama(self, strumento, argomenti):
+        risp = self._richiesta("tools/call", {"name": strumento, "arguments": argomenti or {}})
+        return _testo_risultato(risp)
+
+
 def _testo_risultato(risp):
     """Riduce la risposta MCP a testo leggibile da un agente."""
     if risp is None:
@@ -178,7 +315,14 @@ def avvia_tutti(al_via=None):
     for nome, c in cfg.items():
         if not c.get("attivo"):
             continue
-        s = Server(nome, c.get("comando", ""), c.get("argomenti"), c.get("ambiente"), c.get("cartella"))
+        # Con un 'url' e' un servizio su internet; con un 'comando' un
+        # programma sul tuo computer. Il resto del codice non vede differenza.
+        if c.get("url"):
+            s = ServerHttp(nome, c["url"], chiave=c.get("chiave"),
+                           intestazione=c.get("intestazione"), prefisso=c.get("prefisso"),
+                           intestazioni=c.get("intestazioni"))
+        else:
+            s = Server(nome, c.get("comando", ""), c.get("argomenti"), c.get("ambiente"), c.get("cartella"))
         dillo(u"avvio il server MCP «{}»…".format(nome))
         if s.avvia():
             SERVER[nome] = s

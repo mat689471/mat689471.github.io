@@ -73,7 +73,9 @@ export class Strumenti {
       nota: (CATALOGO.find(c => c.id === id) || {}).nota || "",
       rischio: !!(CATALOGO.find(c => c.id === id) || {}).rischio,
       attivo: !!s.attivo,
-      comando: [s.comando, ...(s.argomenti || [])].join(" "),
+      comando: s.url ? (s.url + (s.chiave ? "   🔑 " + s.chiave : "   (senza chiave)"))
+                     : [s.comando, ...(s.argomenti || [])].join(" "),
+      remoto: !!s.url,
       configurato: true,
     }));
     const noti = new Set(configurati.map(s => s.id));
@@ -105,11 +107,34 @@ export class Strumenti {
     return { ok: true, id, attivo: !!attivo };
   }
 
-  /** Un server tuo, non del catalogo. */
-  async aggiungi({ id, comando, argomenti, nota }) {
+  /**
+   * Un server tuo, non del catalogo. Due forme:
+   *   - sul tuo computer:  un comando da lanciare
+   *   - su internet:       un indirizzo, piu' il NOME di una chiave di Cassaforte
+   * Il valore della chiave non passa mai di qui e non finisce in mcp.json.
+   */
+  async aggiungi({ id, comando, argomenti, nota, url, chiave }) {
     id = String(id || "").trim().replace(/[^a-zA-Z0-9_-]/g, "");
     if (!id) throw new Error("serve un nome");
-    if (!String(comando || "").trim()) throw new Error("serve un comando");
+
+    url = String(url || "").trim();
+    if (url) {
+      if (!/^https:\/\//i.test(url))
+        throw new Error("l'indirizzo deve cominciare con https:// — su http la chiave viaggerebbe in chiaro");
+      const cfg = await this.config();
+      cfg.server = cfg.server || {};
+      cfg.server[id] = {
+        _nota: String(nota || "").slice(0, 300),
+        attivo: true,
+        url,
+        // il NOME della chiave, non il valore
+        ...(String(chiave || "").trim() ? { chiave: String(chiave).trim() } : {}),
+      };
+      await this.salva(cfg);
+      return { ok: true, id, dove: "internet" };
+    }
+
+    if (!String(comando || "").trim()) throw new Error("serve un comando oppure un indirizzo");
     const cfg = await this.config();
     cfg.server = cfg.server || {};
     cfg.server[id] = {
@@ -120,7 +145,7 @@ export class Strumenti {
                : String(argomenti || "").split(/\s+/).filter(Boolean),
     };
     await this.salva(cfg);
-    return { ok: true, id };
+    return { ok: true, id, dove: "computer" };
   }
 
   async rimuovi(id) {

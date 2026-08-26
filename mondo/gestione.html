@@ -377,18 +377,50 @@
     <div class="card">
       <h2>Aggiungine uno tuo</h2>
       <div class="in">
-        <div class="row">
-          <div><label for="mcpNome">Nome</label><input id="mcpNome" placeholder="es. meteo"></div>
-          <div><label for="mcpCmd">Comando</label><input id="mcpCmd" placeholder="npx"></div>
+        <div class="tabs" style="margin-bottom:14px">
+          <button type="button" role="tab" data-dove="internet" aria-selected="true">🌐 Su internet</button>
+          <button type="button" role="tab" data-dove="computer" aria-selected="false">💻 Sul mio computer</button>
         </div>
-        <div class="row" style="margin-top:10px">
-          <div><label for="mcpArg">Argomenti</label><input id="mcpArg" placeholder="-y un-server-mcp@latest"></div>
-          <button class="btn" id="btnAggMcp">Aggiungi e accendi</button>
+
+        <div id="formInternet">
+          <div class="row">
+            <div><label for="mcpNome2">Nome</label><input id="mcpNome2" placeholder="es. higgsfield"></div>
+            <div style="flex:2"><label for="mcpUrl">Indirizzo del connettore</label>
+              <input id="mcpUrl" placeholder="https://…/mcp"></div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <div><label for="mcpChiave">Chiave da usare</label>
+              <select id="mcpChiave"><option value="">— nessuna —</option></select></div>
+            <button class="btn" id="btnAggUrl">Aggiungi e accendi</button>
+          </div>
+          <p class="nota" style="margin-top:10px">
+            Servizi che generano video, audio o immagini, e qualunque altro connettore
+            MCP raggiungibile via web. Ti servono due cose: l'<b>indirizzo</b>, che
+            trovi nella pagina per sviluppatori del servizio, e la <b>chiave</b>, che
+            metti prima nella Cassaforte — qui scegli solo il suo nome, il valore non
+            passa da questo modulo e non finisce nel file di configurazione.
+          </p>
         </div>
-        <p class="nota" style="margin-top:10px">
-          Serve per un server MCP che gira sul tuo computer. I connettori di
-          claude.ai (Gmail, Drive, Calendario…) non si attaccano qui: vivono nel tuo
-          account Claude, non su questo PC.
+
+        <div id="formComputer" class="hide">
+          <div class="row">
+            <div><label for="mcpNome">Nome</label><input id="mcpNome" placeholder="es. meteo"></div>
+            <div><label for="mcpCmd">Comando</label><input id="mcpCmd" placeholder="npx"></div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <div><label for="mcpArg">Argomenti</label><input id="mcpArg" placeholder="-y un-server-mcp@latest"></div>
+            <button class="btn" id="btnAggMcp">Aggiungi e accendi</button>
+          </div>
+          <p class="nota" style="margin-top:10px">
+            Per un server MCP che gira sul tuo computer, avviato da un comando.
+          </p>
+        </div>
+
+        <p class="nota" style="margin-top:14px;border-top:1px solid var(--border-soft);padding-top:12px">
+          I connettori che hai attivato dentro <b>claude.ai</b> (Gmail, Drive, Calendario…)
+          non si attaccano qui: vivono nel tuo account Claude e si autenticano con un
+          accesso che non ti lascia una chiave da incollare. Per dare quelle stesse
+          capacità agli agenti serve il connettore del servizio con una sua chiave.
         </p>
       </div>
     </div>
@@ -440,6 +472,18 @@
       : '<p class="nota">Nessuna skill trovata. Le skill di Claude Code stanno in ~/.claude/skills.</p>';
 
     // server MCP: qui invece si accende e si spegne
+    // il menu a tendina propone le chiavi che hai davvero in Cassaforte
+    const sel=$("#mcpChiave"), prima=sel.value;
+    sel.replaceChildren();
+    const vuota=document.createElement("option"); vuota.value=""; vuota.textContent="— nessuna —";
+    sel.appendChild(vuota);
+    for(const k of (cass.chiavi||[])){
+      const o=document.createElement("option");
+      o.value=typeof k==="string"?k:k.nome; o.textContent=o.value;
+      sel.appendChild(o);
+    }
+    sel.value=prima;
+
     const srv = d.server||[];
     const accesi = srv.filter(x=>x.attivo).length;
     $("#nMcp").textContent = accesi+" di "+srv.length+" accesi";
@@ -448,6 +492,7 @@
       + '<div class="srv-testo">'
       +   '<div class="srv-nome">'+esc(x.titolo)
       +     (x.rischio?' <span class="chip" style="color:#ff9f6b">da valutare</span>':'')
+      +     (x.remoto?' <span class="chip">🌐 su internet</span>':'')
       +     (x.configurato?'':' <span class="chip">non ancora aggiunto</span>')
       +   '</div>'
       +   '<div class="srv-cosa">'+esc(x.cosa||"")+'</div>'
@@ -472,6 +517,27 @@
       };
     }
   }
+
+  // il modulo ha due forme: internet o computer
+  for(const b of document.querySelectorAll('[data-dove]')){
+    b.onclick=()=>{
+      document.querySelectorAll('[data-dove]').forEach(x=>x.setAttribute("aria-selected", String(x===b)));
+      $("#formInternet").classList.toggle("hide", b.dataset.dove!=="internet");
+      $("#formComputer").classList.toggle("hide", b.dataset.dove!=="computer");
+    };
+  }
+
+  $("#btnAggUrl").onclick = async ()=>{
+    const nome=$("#mcpNome2").value.trim(), url=$("#mcpUrl").value.trim(), chiave=$("#mcpChiave").value;
+    if(!nome||!url) return msg("#msgMcp","Servono nome e indirizzo.","#ff9f6b");
+    try{
+      const r = await post("/api/strumenti",{azione:"aggiungi", id:nome, url, chiave});
+      if(r.ok===false) throw new Error(r.errore||"non riuscito");
+      $("#mcpNome2").value=$("#mcpUrl").value=""; $("#mcpChiave").value="";
+      msg("#msgMcp","Aggiunto e acceso. Riavvia l'ecosistema: se l'indirizzo o la chiave non vanno, te lo dice all'avvio.","#4ce0a5");
+      await caricaStrumenti();
+    }catch(e){ msg("#msgMcp","Non riuscito: "+e.message,"#ff9f6b"); }
+  };
 
   $("#btnAggMcp").onclick = async ()=>{
     const nome=$("#mcpNome").value.trim(), cmd=$("#mcpCmd").value.trim(), arg=$("#mcpArg").value.trim();

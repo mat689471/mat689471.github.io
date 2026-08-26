@@ -117,9 +117,32 @@ richiesta di autorizzazione del mondo**. Un comando PowerShell distruttivo ti
 chiede il permesso; uno strumento MCP no. Accendi quello che ti fidi di dare in
 mano agli agenti senza conferma.
 
-I connettori di claude.ai (Gmail, Drive, Calendario…) **non si attaccano qui**:
-vivono nel tuo account Claude, non su questo computer, e questo ecosistema parla
-solo con i server MCP che girano in locale.
+### Connettori su internet
+
+Non tutto gira in locale. I servizi che generano video, audio e immagini stanno
+sul web, e si attaccano dalla stessa scheda: **Aggiungine uno tuo → 🌐 Su
+internet**. Servono due cose: l'indirizzo del connettore (lo trovi nella pagina
+per sviluppatori del servizio) e una chiave, che metti **prima** in Cassaforte —
+nel modulo scegli solo il suo nome. In `mcp.json` finisce il nome, mai il valore.
+
+L'indirizzo deve essere `https://`: su `http://` la chiave viaggerebbe in chiaro,
+e viene rifiutato.
+
+I connettori che hai attivato dentro **claude.ai** (Gmail, Drive, Calendario…)
+sono un'altra cosa: vivono nel tuo account Claude e si autenticano con un accesso
+che non ti lascia una chiave da incollare, quindi non si attaccano qui. Per dare
+quelle capacità agli agenti serve il connettore del servizio con una sua chiave.
+
+## La Vetrina: vedere il lavoro finito
+
+Quando un agente finisce qualcosa di guardabile — una pagina web, un'immagine,
+un video, un audio, un PDF — lo salva nella cartella `lavori/` e la **Vetrina**
+si apre da sola nel mondo. Una pagina si sfoglia davvero, un video parte, un
+audio si ascolta. Il pulsante **🖼 Vetrina** riapre l'ultimo lavoro, e in basso
+restano i precedenti.
+
+`lavori/` è l'unica cartella che il mondo mostra: una consegna che punta altrove
+viene rifiutata, così un agente non può pubblicare per sbaglio un file privato.
 
 ## I tuoi dati restano tuoi
 

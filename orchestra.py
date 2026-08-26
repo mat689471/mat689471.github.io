@@ -572,6 +572,9 @@ def carica_chiavi():
                 dati = json.loads(r.read().decode("utf-8"))
             ambiente = dati.get("ambiente") or {}
             agente.AMBIENTE_CASSAFORTE = {str(k): str(v) for k, v in ambiente.items()}
+            # Anche i connettori su internet hanno bisogno delle chiavi: le
+            # ricevono qui, in memoria, mai scritte in mcp.json.
+            mcp.CHIAVI = dict(agente.AMBIENTE_CASSAFORTE)
             nomi = sorted(agente.AMBIENTE_CASSAFORTE.keys())
             if MONDO is not None:
                 MONDO.chiavi = nomi
