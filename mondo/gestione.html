@@ -282,6 +282,7 @@
       <h2>Canali configurati</h2>
       <div class="in">
         <div class="tw"><table id="tabPag"><thead><tr><th>Canale</th><th>Valore</th><th>Stato</th><th></th></tr></thead><tbody></tbody></table></div>
+        <p class="nota" id="msgPag" style="margin-bottom:10px"></p>
         <div id="vuotoPag" class="vuoto">Nessun canale di incasso ancora configurato.</div>
       </div>
     </div>
@@ -842,7 +843,16 @@
     const campo=$("#"+b.dataset.campo), valore=campo.value.trim();
     if(!valore) return;
     const r=await post("/api/vault",{azione:"imposta",nome:b.dataset.salva,valore,tipo:b.dataset.tipo});
-    if(r.ok){ campo.value=""; caricaCassaforte(); }
+    if(!r.ok) return msg("#msgPag","Non salvato: "+(r.errore||"riprova"),"#ff9f6b");
+    campo.value="";
+    // se il valore apparteneva a un altro servizio l'ho messo dove va: meglio
+    // dirlo, altrimenti sembra sparito
+    if(r.corretto)
+      msg("#msgPag","L'ho salvato come «"+r.corretto.etichetta+"»: quel valore è di "
+        +"quel servizio, non del riquadro in cui l'hai incollato.","#f5b942");
+    else
+      msg("#msgPag","Salvato.","#4ce0a5");
+    caricaCassaforte();
   });
 
   const CANALI=[
@@ -862,7 +872,11 @@
       const link=/LINK/.test(c.nome);
       tr.innerHTML='<td class="name">'+esc(c.et)+'</td>'+
         '<td><span class="mask">'+esc(link?c.k.anteprima:c.k.anteprima)+'</span></td>'+
-        '<td>'+(c.k.avviso&&c.k.avviso.livello==="alto"?'<span class="chip" style="color:#ffb3b3;border-color:rgba(255,107,107,.45)">da sostituire</span>':'<span class="chip attivo">attivo</span>')+'</td>'+
+        '<td>'+(c.k.sbagliato
+                ? '<span class="chip" style="color:#f5b942;border-color:rgba(245,185,66,.45)" title="Il valore salvato qui sembra di un altro servizio">sembra '+esc(c.k.sbagliato.etichetta)+'</span>'
+                : c.k.avviso&&c.k.avviso.livello==="alto"
+                ? '<span class="chip" style="color:#ffb3b3;border-color:rgba(255,107,107,.45)">da sostituire</span>'
+                : '<span class="chip attivo">attivo</span>')+'</td>'+
         '<td style="text-align:right"><button class="btn ghost small" data-delp="'+esc(c.nome)+'">Rimuovi</button></td>';
       tb.appendChild(tr);
     }

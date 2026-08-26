@@ -99,8 +99,20 @@ export class Cassaforte {
     const n = normalizzaNome(nome);
     if (!n) return { ok: false, errore: "nome non valido" };
     if (!valore) return { ok: false, errore: "valore vuoto" };
-    const prima = this.segreti[n];
-    this.segreti[n] = {
+    // Il valore sa a quale servizio appartiene: se non e' quello del campo in
+    // cui e' stato incollato, il campo ha torto. Capita di sbagliare riquadro,
+    // e senza questo controllo il link finiva salvato sotto il nome sbagliato
+    // senza che niente lo dicesse.
+    const rico = riconosci(valore);
+    const nomeNoto = CATALOGO.some(c => c.nome === n);
+    let finale = n, corretto = null;
+    if (rico && rico.nome !== n && nomeNoto) {
+      finale = rico.nome;
+      corretto = { da: n, a: rico.nome, etichetta: rico.etichetta };
+    }
+
+    const prima = this.segreti[finale];
+    this.segreti[finale] = {
       valore: String(valore),
       tipo: opz.tipo || (prima && prima.tipo) || "api",
       note: opz.note !== undefined ? opz.note : (prima ? prima.note : ""),
@@ -109,7 +121,8 @@ export class Cassaforte {
       usato: prima ? prima.usato : null,
     };
     await this.#salva();
-    return { ok: true, nome: n, avviso: rischioDi(n, valore), refuso: refusoDi(n) };
+    return { ok: true, nome: finale, corretto,
+             avviso: rischioDi(finale, valore), refuso: refusoDi(finale) };
   }
 
   async rimuovi(nome) {
@@ -131,6 +144,14 @@ export class Cassaforte {
       creato: s.creato, aggiornato: s.aggiornato, usato: s.usato,
       avviso: rischioDi(nome, s.valore),
       refuso: refusoDi(nome),
+      // Un valore gia' salvato sotto il nome sbagliato: il controllo al
+      // salvataggio non c'era ancora quando e' entrato, quindi lo segnaliamo
+      // qui invece di lasciarlo sbagliato per sempre.
+      sbagliato: (() => {
+        const r = riconosci(s.valore);
+        return (r && r.nome !== nome && CATALOGO.some(c => c.nome === nome))
+          ? { nome: r.nome, etichetta: r.etichetta } : null;
+      })(),
     })).sort((a, b) => a.nome.localeCompare(b.nome));
     return { sbloccata: true, conPassphrase: this.conPassphrase, chiavi, catalogo: CATALOGO };
   }
