@@ -78,6 +78,34 @@ python agente.py --mondo
 L'errore più comune è `Cannot find module ...\mondo\mondo\avvia.mjs`: vuol
 dire che sei già dentro `mondo`. Torna indietro con `cd ..` e riprova.
 
+## Cosa hanno in mano gli agenti
+
+Quartier Generale, scheda **🔌 Strumenti agenti**.
+
+**Le competenze (Skill) sono già tutte attive.** Non c'è niente da accendere:
+l'ecosistema le cerca dove le tiene Claude Code (`~/.claude/skills`, i plugin, e
+`.claude/skills` del progetto), quindi le skill che hai scritto per lui sono
+automaticamente anche degli agenti. Un agente si legge per intero solo quella
+che gli serve, quando gli serve.
+
+**I server MCP invece si accendono**, con gli interruttori della stessa scheda.
+Accesi di partenza: `ruflo`, memoria persistente e ragionamento a passi. Dopo
+ogni accensione **riavvia l'ecosistema**.
+
+Un server MCP può portare centinaia di strumenti: nel prompt degli agenti ce ne
+stanno poche decine, prese a turno fra i server. Gli altri restano
+raggiungibili — l'agente li cerca con `cerca_strumento_mcp` quando pensa che
+esista quello adatto.
+
+Da sapere prima di accenderne altri: **gli strumenti MCP non passano dalla
+richiesta di autorizzazione del mondo**. Un comando PowerShell distruttivo ti
+chiede il permesso; uno strumento MCP no. Accendi quello che ti fidi di dare in
+mano agli agenti senza conferma.
+
+I connettori di claude.ai (Gmail, Drive, Calendario…) **non si attaccano qui**:
+vivono nel tuo account Claude, non su questo computer, e questo ecosistema parla
+solo con i server MCP che girano in locale.
+
 ## I tuoi dati restano tuoi
 
 Le cartelle `dati/` (chiavi API, conti, contabilità) e `avatar/` (i modelli 3D

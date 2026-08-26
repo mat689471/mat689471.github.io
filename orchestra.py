@@ -588,6 +588,22 @@ TOOLS_SPECIALISTA = [
                          "required": ["nome"]},
     },
     {
+        "name": "cerca_strumento_mcp",
+        "description": (u"Cerca fra TUTTI gli strumenti MCP, compresi quelli non elencati nel "
+                        u"prompt (sono centinaia, nell'elenco ne stanno poche decine). "
+                        u"Usalo prima di ripiegare su PowerShell quando pensi che esista lo "
+                        u"strumento adatto. IMPORTANTE: cerca con parole INGLESI - i nomi e le "
+                        u"descrizioni degli strumenti sono in inglese, quindi 'memory store' "
+                        u"trova, 'ricorda in memoria' no. Ti restituisce nome, server e schema "
+                        u"degli argomenti, pronti per 'usa_strumento_mcp'."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "parole": {"type": "string", "description": u"parole chiave in inglese, es. 'memory store'"},
+            },
+            "required": ["parole"]},
+    },
+    {
         "name": "usa_strumento_mcp",
         "description": (u"Richiama uno degli strumenti MCP elencati (per esempio quelli di "
                         u"ruflo). Piu' mirato di un comando PowerShell quando esiste lo "
@@ -746,6 +762,16 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
                     contenuto = (json.dumps(sk, ensure_ascii=False)[:22000] if sk
                                  else json.dumps({"errore": u"competenza non trovata: " + nome_c},
                                                  ensure_ascii=False))
+
+                elif b.name == "cerca_strumento_mcp":
+                    parole = args.get("parole", "")
+                    trovati = mcp.cerca(parole, 12)
+                    m.evento(nome_ag, u"🔎 cerca uno strumento: «{}» ({} trovati)".format(
+                        parole[:40], len(trovati)), colore)
+                    contenuto = json.dumps({"strumenti": trovati} if trovati else
+                                           {"nessuno": u"niente per «{}». Prova parole inglesi "
+                                                       u"diverse, oppure usa PowerShell.".format(parole)},
+                                           ensure_ascii=False)[:9000]
 
                 elif b.name == "usa_strumento_mcp":
                     srv = args.get("server", "")
@@ -1055,8 +1081,8 @@ def avvia(client, memoria):
     # I server MCP (ruflo) portano i loro strumenti agli agenti.
     print(u"")
     avviati = mcp.avvia_tutti(lambda t: print(u" MCP: " + t))
-    MONDO.strumenti_mcp = [{"server": t["server"], "nome": t["nome"],
-                            "descrizione": t["descrizione"]} for t in mcp.catalogo()]
+    # Nel mondo va il riassunto, non il catalogo: vedi mcp.riassunto().
+    MONDO.strumenti_mcp = mcp.riassunto()
     MONDO.pubblica()
 
     print(u"\n Ecosistema avviato. L'Orchestratore e' in ascolto.")
@@ -1066,8 +1092,9 @@ def avvia(client, memoria):
     print(u" Competenze (Skill): {}".format(len(COMPETENZE)))
     print(u" Avatar applicati: {}".format(avatar.elenco_testuale()))
     print(u" Strumenti MCP: {}{}".format(
-        len(MONDO.strumenti_mcp),
-        u" da " + u", ".join(avviati) if avviati else u" (nessun server attivo in mcp.json)"))
+        len(mcp.catalogo()),      # quelli veri, non le voci riassunte del pannello
+        u" da " + u", ".join(avviati) if avviati else
+        u" (nessun server acceso — Quartier Generale, scheda Strumenti agenti)"))
     if nomi:
         print(u" Cassaforte: {} chiavi disponibili agli agenti.".format(len(nomi)))
     else:

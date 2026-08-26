@@ -36,6 +36,27 @@
   .card{background:linear-gradient(180deg,rgba(16,23,40,.9),rgba(10,15,28,.92));border:1px solid var(--border);border-radius:16px;margin-bottom:14px;overflow:hidden}
   .card > h2{font-family:"Chakra Petch",monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--faint);padding:15px 18px 11px;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;justify-content:space-between;gap:10px}
   .card .in{padding:16px 18px}
+
+  /* interruttori degli strumenti */
+  .srv{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--border-soft)}
+  .srv:last-child{border-bottom:0}
+  .srv-testo{flex:1;min-width:0}
+  .srv-nome{font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .srv-cosa{font-size:12.5px;color:var(--muted);line-height:1.55;margin-top:3px}
+  .srv-cmd{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--faint);margin-top:6px;
+           word-break:break-all;background:rgba(255,255,255,.03);padding:4px 7px;border-radius:6px;display:inline-block}
+  .srv-nota{font-size:12px;color:var(--gold);margin-top:6px;line-height:1.5}
+  .sw{flex:0 0 auto;width:50px;height:28px;border-radius:999px;border:1px solid var(--border);
+      background:rgba(255,255,255,.05);position:relative;cursor:pointer;transition:.18s;padding:0}
+  .sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;
+             background:var(--faint);transition:.18s}
+  .sw[aria-checked="true"]{background:rgba(76,224,165,.22);border-color:rgba(76,224,165,.5)}
+  .sw[aria-checked="true"]::after{left:26px;background:#4ce0a5}
+  .sw:disabled{opacity:.5;cursor:wait}
+  .comp{display:flex;gap:10px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--border-soft)}
+  .comp:last-child{border-bottom:0}
+  .comp b{font-weight:600;font-size:13px;white-space:nowrap}
+  .comp span{font-size:12.5px;color:var(--muted);line-height:1.5}
   .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
 
   label{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:5px}
@@ -132,6 +153,7 @@
     <button role="tab" data-tab="chiavi" aria-selected="true">🔑 Cassaforte</button>
     <button role="tab" data-tab="incassi" aria-selected="false">💳 Incassi</button>
     <button role="tab" data-tab="progetti" aria-selected="false">📊 Progetti e contabilità</button>
+    <button role="tab" data-tab="strumenti" aria-selected="false">🔌 Strumenti agenti</button>
   </div>
 
   <!-- ============ CASSAFORTE ============ -->
@@ -317,6 +339,62 @@
       </div>
     </div>
   </section>
+
+  <!-- ============ STRUMENTI DEGLI AGENTI ============ -->
+  <section id="t-strumenti" class="hide">
+
+    <div class="card">
+      <h2>Competenze · Skill <span class="chip" id="nComp">—</span></h2>
+      <div class="in">
+        <p class="nota" style="margin-bottom:12px">
+          Queste non si accendono: sono <b>già tutte attive</b>. L'ecosistema le cerca dove
+          le tiene Claude Code, quindi le skill che hai scritto per lui sono
+          automaticamente anche degli agenti. Un agente legge per intero solo quella
+          che gli serve, quando gli serve.
+        </p>
+        <div id="elencoComp"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Server MCP <span class="chip" id="nMcp">—</span></h2>
+      <div class="in">
+        <p class="nota" style="margin-bottom:6px">
+          Un server MCP porta agli agenti strumenti nuovi. Accendi l'interruttore,
+          poi <b>riavvia l'ecosistema</b>: gli strumenti compaiono nel mondo, nel
+          riquadro Dotazione.
+        </p>
+        <p class="nota" style="margin-bottom:14px;color:var(--gold)">
+          Da sapere: gli strumenti MCP <b>non passano</b> dalla richiesta di
+          autorizzazione del mondo. Accendi solo quello che ti fidi di dare in mano
+          agli agenti senza che ti chiedano il permesso ogni volta.
+        </p>
+        <div id="elencoMcp"></div>
+        <div id="msgMcp" class="nota" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Aggiungine uno tuo</h2>
+      <div class="in">
+        <div class="row">
+          <div><label for="mcpNome">Nome</label><input id="mcpNome" placeholder="es. meteo"></div>
+          <div><label for="mcpCmd">Comando</label><input id="mcpCmd" placeholder="npx"></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div><label for="mcpArg">Argomenti</label><input id="mcpArg" placeholder="-y un-server-mcp@latest"></div>
+          <button class="btn" id="btnAggMcp">Aggiungi e accendi</button>
+        </div>
+        <p class="nota" style="margin-top:10px">
+          Serve per un server MCP che gira sul tuo computer. I connettori di
+          claude.ai (Gmail, Drive, Calendario…) non si attaccano qui: vivono nel tuo
+          account Claude, non su questo PC.
+        </p>
+      </div>
+    </div>
+
+  </section>
+
 </div>
 
 <script>
@@ -341,10 +419,71 @@
   document.querySelectorAll('.tabs button').forEach(b=>{
     b.onclick=()=>{
       document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute("aria-selected", String(x===b)));
-      for(const s of ["chiavi","incassi","progetti"]) $("#t-"+s).classList.toggle("hide", s!==b.dataset.tab);
+      for(const s of ["chiavi","incassi","progetti","strumenti"]) $("#t-"+s).classList.toggle("hide", s!==b.dataset.tab);
       if(b.dataset.tab==="progetti") disegnaGrafico();
+      if(b.dataset.tab==="strumenti") caricaStrumenti();
     };
   });
+
+  // ---------- STRUMENTI: competenze e MCP ----------
+  async function caricaStrumenti(){
+    let d;
+    try{ d = await api("/api/strumenti"); }
+    catch{ $("#elencoMcp").innerHTML = '<p class="nota">Ecosistema non avviato.</p>'; return; }
+
+    // competenze: sola lettura, sono gia' tutte in mano agli agenti
+    const c = d.competenze||[];
+    $("#nComp").textContent = c.length + (c.length===1?" competenza":" competenze");
+    $("#elencoComp").innerHTML = c.length
+      ? c.map(x=>'<div class="comp"><b>'+esc(x.nome)+'</b><span>'+esc(x.descrizione||"—")
+               +' <span style="color:var(--faint)">· '+esc(x.fonte)+'</span></span></div>').join("")
+      : '<p class="nota">Nessuna skill trovata. Le skill di Claude Code stanno in ~/.claude/skills.</p>';
+
+    // server MCP: qui invece si accende e si spegne
+    const srv = d.server||[];
+    const accesi = srv.filter(x=>x.attivo).length;
+    $("#nMcp").textContent = accesi+" di "+srv.length+" accesi";
+    $("#elencoMcp").innerHTML = srv.map(x=>
+      '<div class="srv">'
+      + '<div class="srv-testo">'
+      +   '<div class="srv-nome">'+esc(x.titolo)
+      +     (x.rischio?' <span class="chip" style="color:#ff9f6b">da valutare</span>':'')
+      +     (x.configurato?'':' <span class="chip">non ancora aggiunto</span>')
+      +   '</div>'
+      +   '<div class="srv-cosa">'+esc(x.cosa||"")+'</div>'
+      +   (x.nota?'<div class="srv-nota">'+esc(x.nota)+'</div>':'')
+      +   '<div class="srv-cmd">'+esc(x.comando)+'</div>'
+      + '</div>'
+      + '<button class="sw" role="switch" aria-checked="'+(x.attivo?"true":"false")
+      +        '" data-id="'+esc(x.id)+'" aria-label="Accendi '+esc(x.titolo)+'"></button>'
+      + '</div>').join("");
+
+    for(const b of document.querySelectorAll("#elencoMcp .sw")){
+      b.onclick = async ()=>{
+        const acceso = b.getAttribute("aria-checked")==="true";
+        b.disabled = true;
+        try{
+          const r = await post("/api/strumenti",{azione:"accendi", id:b.dataset.id, attivo:!acceso});
+          if(r.ok===false) throw new Error(r.errore||"non riuscito");
+          msg("#msgMcp", (acceso?"Spento":"Acceso")+". Riavvia l'ecosistema perche' abbia effetto.",
+              acceso?"var(--muted)":"#4ce0a5");
+          await caricaStrumenti();
+        }catch(e){ b.disabled=false; msg("#msgMcp","Non riuscito: "+e.message,"#ff9f6b"); }
+      };
+    }
+  }
+
+  $("#btnAggMcp").onclick = async ()=>{
+    const nome=$("#mcpNome").value.trim(), cmd=$("#mcpCmd").value.trim(), arg=$("#mcpArg").value.trim();
+    if(!nome||!cmd) return msg("#msgMcp","Servono almeno nome e comando.","#ff9f6b");
+    try{
+      const r = await post("/api/strumenti",{azione:"aggiungi", id:nome, comando:cmd, argomenti:arg});
+      if(r.ok===false) throw new Error(r.errore||"non riuscito");
+      $("#mcpNome").value=$("#mcpCmd").value=$("#mcpArg").value="";
+      msg("#msgMcp","Aggiunto e acceso. Riavvia l'ecosistema.","#4ce0a5");
+      await caricaStrumenti();
+    }catch(e){ msg("#msgMcp","Non riuscito: "+e.message,"#ff9f6b"); }
+  };
 
   // ---------- CASSAFORTE ----------
   let cass = {sbloccata:false, conPassphrase:false, chiavi:[]};

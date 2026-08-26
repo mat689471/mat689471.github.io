@@ -18,6 +18,7 @@ import http from "node:http";
 import { readFile, writeFile } from "node:fs/promises";
 import { Cassaforte } from "./vault.mjs";
 import { Registro } from "./ledger.mjs";
+import { Strumenti } from "./strumenti.mjs";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { exec } from "node:child_process";
@@ -44,6 +45,7 @@ const DATI = path.join(ROOT, "..", "dati");   // cassaforte + contabilità (fuor
 
 const cassaforte = new Cassaforte(DATI);
 const registro = new Registro(DATI);
+const strumenti = new Strumenti(path.join(ROOT, ".."));
 
 function json(res, code, obj) { res.writeHead(code, JSONH); res.end(JSON.stringify(obj)); }
 function leggiCorpo(req) {
@@ -136,6 +138,26 @@ const server = http.createServer(async (req, res) => {
             case "chiudi":    cassaforte.chiudi(); return json(res, 200, { ok: true });
             case "passphrase":return json(res, 200, await cassaforte.impostaPassphrase(p.passphrase || null));
             default:          return json(res, 400, { ok: false, errore: "azione sconosciuta" });
+          }
+        } catch (e) { return json(res, 400, { ok: false, errore: e.message }); }
+      }
+      return json(res, 405, { ok: false });
+    }
+
+    // ---- STRUMENTI: competenze (Skill) e server MCP -----------------------
+    // Accendere un MCP significa dare nuovi poteri agli agenti: solo da qui.
+    if (apiPath === "/api/strumenti") {
+      if (!daLocale(req)) return json(res, 403, { ok: false, errore: "solo da questo computer" });
+      if (req.method === "GET")
+        return json(res, 200, { ok: true, server: await strumenti.server(), competenze: await strumenti.competenze() });
+      if (req.method === "POST") {
+        const p = await leggiCorpo(req);
+        try {
+          switch (p.azione) {
+            case "accendi": return json(res, 200, await strumenti.accendi(p.id, p.attivo));
+            case "aggiungi": return json(res, 200, await strumenti.aggiungi(p));
+            case "rimuovi":  return json(res, 200, await strumenti.rimuovi(p.id));
+            default:         return json(res, 400, { ok: false, errore: "azione sconosciuta" });
           }
         } catch (e) { return json(res, 400, { ok: false, errore: e.message }); }
       }

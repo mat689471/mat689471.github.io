@@ -221,6 +221,68 @@ def chiama(server, strumento, argomenti):
         return u"[errore] {}".format(e)
 
 
+MAX_IN_PROMPT = 60      # oltre, il prompt diventa piu' lungo del lavoro da fare
+
+# Parole troppo comuni per dire qualcosa: se restano, la ricerca risponde
+# sempre di si'. Sono le italiane dei nostri prompt e le inglesi dei server.
+_VUOTE = set(u"""
+una uno per con del della dei delle che cosa come dopo prima poi non piu meno
+sul sulla nel nella dal dalla mio mia tuo tua suo sua questo questa quello
+and the for with from that this into your you use used using when where what
+all any are can get set new old its our their they them there here
+""".split())
+
+
+def _parole(testo):
+    """Le parole utili di un testo: niente punteggiatura, niente parole vuote."""
+    pulito = u"".join(c if c.isalnum() else u" " for c in (testo or u"").lower())
+    return [p for p in pulito.split() if len(p) >= 3 and p not in _VUOTE]
+
+
+def cerca(parola, limite=25):
+    """
+    Gli strumenti che somigliano a quello che l'agente sta cercando.
+    Serve perche' nel prompt ce ne stanno poche decine e i server ne portano
+    centinaia: senza una ricerca, tutto quello che non entra nell'elenco e'
+    come se non esistesse.
+    """
+    parti = _parole(parola)
+    if not parti:
+        return []
+    trovati = []
+    for t in catalogo():
+        nome = set(_parole(t["nome"]))
+        testo = set(_parole(t["descrizione"])) | nome
+        # parola intera, non pezzo di parola: senza questo 'per' trova
+        # 'performance' e la ricerca restituisce qualsiasi cosa.
+        punti = sum(3 if p in nome else (1 if p in testo else 0) for p in parti)
+        if punti:
+            trovati.append((punti, t))
+    trovati.sort(key=lambda x: (-x[0], x[1]["nome"]))
+    return [t for _, t in trovati[:limite]]
+
+
+def riassunto():
+    """
+    Un riassunto per il mondo: una voce per server, non una per strumento.
+    Un solo server puo' portarne centinaia; mandarle tutte al browser ogni due
+    secondi vorrebbe dire oltre cento KB a battito, e un pannello con
+    trecento pastiglie non si legge comunque.
+    """
+    per_server = {}
+    for t in catalogo():
+        per_server.setdefault(t["server"], []).append(t["nome"])
+    out = []
+    for srv, nomi in sorted(per_server.items()):
+        out.append({
+            "server": srv,
+            "nome": u"{} · {} strument{}".format(srv, len(nomi), u"o" if len(nomi) == 1 else u"i"),
+            "descrizione": u"Per esempio: " + u", ".join(nomi[:12])
+                           + (u" e altri {}.".format(len(nomi) - 12) if len(nomi) > 12 else u"."),
+        })
+    return out
+
+
 def righe_per_prompt():
     """Le righe da mettere nel prompt degli agenti."""
     cat = catalogo()
@@ -232,8 +294,32 @@ def righe_per_prompt():
         u"Oltre a PowerShell puoi usare questi strumenti con 'usa_strumento_mcp'.",
         u"Passa gli argomenti secondo lo schema indicato dallo strumento.",
     ]
-    for t in cat[:60]:
+
+    # A turno fra i server, non i primi 60 in ordine: un server che ne porta
+    # centinaia riempirebbe da solo l'elenco e gli altri sparirebbero.
+    per_server = {}
+    for t in cat:
+        per_server.setdefault(t["server"], []).append(t)
+    # copie: sotto svuotiamo le code, e i conteggi servono ancora interi
+    scelti, code = [], [list(v) for v in per_server.values()]
+    while code and len(scelti) < MAX_IN_PROMPT:
+        for coda in list(code):
+            if not coda:
+                code.remove(coda)
+                continue
+            scelti.append(coda.pop(0))
+            if len(scelti) >= MAX_IN_PROMPT:
+                break
+
+    for t in scelti:
         righe.append(u"- [{}] {}: {}".format(t["server"], t["nome"], t["descrizione"][:150]))
-    if len(cat) > 60:
-        righe.append(u"- (+{} altri)".format(len(cat) - 60))
+
+    resto = len(cat) - len(scelti)
+    if resto > 0:
+        conteggi = u", ".join(u"{} {}".format(len(v), k) for k, v in sorted(per_server.items()))
+        righe.append(u"")
+        righe.append(u"Questi sono solo un assaggio: in tutto ce ne sono {} ({}).".format(len(cat), conteggi))
+        righe.append(u"Gli altri {} NON sono elencati qui ma ci sono: se pensi che esista lo "
+                     u"strumento giusto per quello che devi fare, cercalo con "
+                     u"'cerca_strumento_mcp' prima di ripiegare su PowerShell.".format(resto))
     return righe
