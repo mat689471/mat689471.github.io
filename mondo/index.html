@@ -377,12 +377,14 @@ window.ECO_CONFIG = {
       const slot=postoLibero(room);
       const desk=deskOf(room,slot);
       // nasce all'ingresso e raggiunge la stanza a piedi
+      // il colore va assegnato SUBITO: gli effetti di comparsa lo usano
       w={id:a.id,kind:"worker",room,slot,desk,gx:ENTRATA.gx,gy:ENTRATA.gy,path:[],
+         name:a.name||a.id, role:a.role||"code", color:a.color||"#8a96b3",
          state:"entering",progress:0,task:null,message:null,goal:"desk",
          bob:Math.random()*6,blink:rnd(2,5),walk:0,talk:0,bubble:null,idleT:rnd(1,4),
          born:performance.now(),_img:null,avatarImage:null,avatarGlb:null};
       agents.set(a.id,w);
-      logLine(a.name||a.id, a.color||"#8a96b3", "entra nell'ecosistema ✦");
+      logLine(w.name, w.color, "entra nell'ecosistema ✦");
       spawnFx(w);
       w.bubble={text:"eccomi!",ttl:2.2};
       goTo(w,[{gx:ENTRATA.gx,gy:8.6}, gate(room), desk]);
@@ -581,8 +583,10 @@ window.ECO_CONFIG = {
   function P(gx,gy){return toScreen(iso(gx,gy));}
   const d0=iso(DAIS.gx,DAIS.gy); cam.x=d0.x; cam.y=d0.y;
 
-  function shade(hex,amt){const n=parseInt(hex.slice(1),16);let r=(n>>16)+amt,g=(n>>8&255)+amt,b=(n&255)+amt;r=Math.max(0,Math.min(255,r));g=Math.max(0,Math.min(255,g));b=Math.max(0,Math.min(255,b));return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);}
-  function rgba(hex,a){const n=parseInt(hex.slice(1),16);return `rgba(${n>>16},${n>>8&255},${n&255},${a})`;}
+  // Un colore mancante non deve mai poter fermare il disegno del mondo.
+  const COL=h=>(typeof h==="string"&&/^#[0-9a-f]{6}$/i.test(h))?h:"#8a96b3";
+  function shade(hex,amt){const n=parseInt(COL(hex).slice(1),16);let r=(n>>16)+amt,g=(n>>8&255)+amt,b=(n&255)+amt;r=Math.max(0,Math.min(255,r));g=Math.max(0,Math.min(255,g));b=Math.max(0,Math.min(255,b));return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);}
+  function rgba(hex,a){const n=parseInt(COL(hex).slice(1),16);return `rgba(${n>>16},${n>>8&255},${n&255},${a})`;}
   function tile(gx,gy,color){const a=P(gx,gy),b=P(gx+1,gy),c=P(gx+1,gy+1),d=P(gx,gy+1);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.lineTo(c.x,c.y);ctx.lineTo(d.x,d.y);ctx.closePath();ctx.fillStyle=color;ctx.fill();ctx.strokeStyle="rgba(120,150,210,.06)";ctx.lineWidth=1;ctx.stroke();}
   function wall(x1,y1,x2,y2,h,color){const g1=P(x1,y1),g2=P(x2,y2),hh=h*cam.zoom;ctx.beginPath();ctx.moveTo(g1.x,g1.y);ctx.lineTo(g2.x,g2.y);ctx.lineTo(g2.x,g2.y-hh);ctx.lineTo(g1.x,g1.y-hh);ctx.closePath();ctx.fillStyle=color;ctx.fill();ctx.strokeStyle="rgba(0,0,0,.25)";ctx.lineWidth=1;ctx.stroke();}
   function box(gx,gy,fw,fd,h,top,left,right){const hh=h*cam.zoom;const a=P(gx,gy),b=P(gx+fw,gy),c=P(gx+fw,gy+fd),d=P(gx,gy+fd);const A={x:a.x,y:a.y-hh},B={x:b.x,y:b.y-hh},C={x:c.x,y:c.y-hh},D={x:d.x,y:d.y-hh};ctx.beginPath();ctx.moveTo(d.x,d.y);ctx.lineTo(c.x,c.y);ctx.lineTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.closePath();ctx.fillStyle=left;ctx.fill();ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(c.x,c.y);ctx.lineTo(C.x,C.y);ctx.lineTo(B.x,B.y);ctx.closePath();ctx.fillStyle=right;ctx.fill();ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.lineTo(C.x,C.y);ctx.lineTo(D.x,D.y);ctx.closePath();ctx.fillStyle=top;ctx.fill();}
@@ -1084,8 +1088,19 @@ window.ECO_CONFIG = {
   // ===================== AVVIO =====================
   function resize(){const st=cv.parentElement.getBoundingClientRect();CW=Math.max(320,st.width);CH=Math.max(300,st.height);DPR=Math.min(2,devicePixelRatio||1);cv.width=CW*DPR;cv.height=CH*DPR;cv.style.width=CW+"px";cv.style.height=CH+"px";ctx.setTransform(DPR,0,0,DPR,0,0);}
   new ResizeObserver(resize).observe(cv.parentElement);
-  let last=performance.now();
-  function frame(t){const dt=Math.min(.05,(t-last)/1000);last=t;if(!paused)tick(dt*speed);render();requestAnimationFrame(frame);}
+  let last=performance.now(), erroriDisegno=0;
+  function frame(t){
+    // Il prossimo fotogramma va prenotato PRIMA di disegnare: se il disegno
+    // sbaglia, il mondo deve continuare a girare invece di congelarsi.
+    requestAnimationFrame(frame);
+    const dt=Math.min(.05,(t-last)/1000); last=t;
+    try{
+      if(!paused) tick(dt*speed);
+      render();
+    }catch(e){
+      if(erroriDisegno++<3) console.error("errore nel disegno del mondo:",e);
+    }
+  }
 
   resize(); renderRoster(); renderChat(); renderFeed(); renderPreview(); updateStats();
   cam.zoom=Math.max(.7,Math.min(1.1,CW/1100));

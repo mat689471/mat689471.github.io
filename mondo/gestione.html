@@ -161,19 +161,20 @@
       <h2>Aggiungi una chiave</h2>
       <div class="in">
         <div class="row" style="margin-bottom:11px">
-          <div><label for="kNome">Nome</label><input id="kNome" class="mono" placeholder="MESHY_API_KEY" autocomplete="off"></div>
-          <div style="flex:2"><label for="kVal">Valore</label><input id="kVal" class="mono" type="password" placeholder="incolla qui la chiave" autocomplete="off"></div>
-          <div style="max-width:150px"><label for="kTipo">Tipo</label><select id="kTipo"><option value="api">API</option><option value="pagamenti">Pagamenti</option><option value="altro">Altro</option></select></div>
+          <div style="flex:2"><label for="kVal">1 · Incolla qui la chiave</label><input id="kVal" class="mono" type="password" placeholder="incolla e il servizio viene riconosciuto da solo" autocomplete="off"></div>
         </div>
+        <div class="row" style="margin-bottom:11px">
+          <div><label for="kServizio">2 · Servizio</label><select id="kServizio"></select></div>
+          <div><label for="kNome">Nome della variabile</label><input id="kNome" class="mono" placeholder="scegli un servizio qui accanto" autocomplete="off" readonly></div>
+          <div style="max-width:140px"><label for="kTipo">Tipo</label><select id="kTipo"><option value="api">API</option><option value="pagamenti">Pagamenti</option><option value="altro">Altro</option></select></div>
+        </div>
+        <div id="kDove" class="avviso info" style="display:none"><span class="ic">📍</span><span></span></div>
+        <div id="kRefuso" class="avviso medio" style="display:none"><span class="ic">✍️</span><span></span></div>
         <div class="row">
           <div><label for="kNote">Note (facoltative)</label><input id="kNote" placeholder="a cosa serve"></div>
           <button class="btn" id="btnAddChiave">Custodisci</button>
         </div>
         <p class="nota" id="msgChiave" style="margin-top:10px"></p>
-        <details style="margin-top:8px">
-          <summary>Nomi che gli agenti riconoscono già</summary>
-          <p class="nota" style="margin-top:6px"><code>MESHY_API_KEY</code> — avatar 3D · <code>STRIPE_RESTRICTED_KEY</code> — statistiche incassi · <code>PAYPAL_CLIENT_ID</code> / <code>PAYPAL_CLIENT_SECRET</code> — API PayPal. Puoi comunque usare qualsiasi nome: verrà passato con quel nome.</p>
-        </details>
       </div>
     </div>
 
@@ -351,6 +352,7 @@
   async function caricaCassaforte(){
     try{ cass = await api("/api/vault"); }
     catch{ $("#statoCass").textContent="ecosistema non avviato"; return; }
+    if(Array.isArray(cass.catalogo)){ catalogo=cass.catalogo; riempiServizi(); }
     const s=$("#statoCass");
     s.className="chip "+(cass.sbloccata?"attivo":"");
     s.textContent = cass.sbloccata ? (cass.conPassphrase?"🔓 cassaforte aperta":"🔑 cassaforte attiva") : "🔒 cassaforte chiusa";
@@ -374,7 +376,8 @@
     $("#tabChiavi").style.display = ch.length?"table":"none";
     for(const k of ch){
       const tr=document.createElement("tr");
-      tr.innerHTML='<td class="name"><code>'+esc(k.nome)+'</code>'+avvisoHtml(k.avviso)+'</td>'+
+      const refuso=k.refuso?'<div class="avviso medio" style="margin:8px 0 0"><span class="ic">✍️</span><span>Somiglia a <code>'+esc(k.refuso)+'</code>: sembra un refuso, e gli agenti cercano il nome esatto. <button class="btn small" data-fix="'+esc(k.nome)+'" data-to="'+esc(k.refuso)+'" style="margin-top:8px">Rinomina in '+esc(k.refuso)+'</button></span></div>':"";
+      tr.innerHTML='<td class="name"><code>'+esc(k.nome)+'</code>'+avvisoHtml(k.avviso)+refuso+'</td>'+
         '<td><span class="mask">'+esc(k.anteprima)+'</span></td>'+
         '<td><span class="chip '+(k.tipo==="pagamenti"?"pag":"api")+'">'+esc(k.tipo)+'</span></td>'+
         '<td>'+esc(k.note||"—")+'</td>'+
@@ -385,6 +388,14 @@
       if(!confirm("Rimuovere "+b.dataset.del+"? Gli agenti non potranno più usarla."))return;
       await post("/api/vault",{azione:"rimuovi",nome:b.dataset.del}); caricaCassaforte();
     });
+    // rinomina una chiave con il refuso, senza doverla reinserire
+    tb.querySelectorAll("[data-fix]").forEach(b=>b.onclick=async()=>{
+      const r=await api("/api/secret?nome="+encodeURIComponent(b.dataset.fix));
+      if(!r.ok) return alert("Non riesco a leggere la chiave.");
+      await post("/api/vault",{azione:"imposta",nome:b.dataset.to,valore:r.valore});
+      await post("/api/vault",{azione:"rimuovi",nome:b.dataset.fix});
+      caricaCassaforte();
+    });
   }
 
   $("#btnSblocca").onclick=async()=>{
@@ -394,13 +405,69 @@
   };
   $("#passSblocco").addEventListener("keydown",e=>{if(e.key==="Enter")$("#btnSblocca").click();});
 
+  // --- scelta guidata del servizio: il nome non si digita, si sceglie ---
+  let catalogo=[];
+  function riempiServizi(){
+    const s=$("#kServizio");
+    if(s.options.length && s.dataset.pronto) return;
+    s.innerHTML='<option value="">— scegli il servizio —</option>'+
+      catalogo.map(c=>'<option value="'+c.id+'">'+esc(c.etichetta)+'</option>').join("")+
+      '<option value="__altro">Altro (scrivo io il nome)</option>';
+    s.dataset.pronto="1";
+  }
+  function applicaServizio(id){
+    const nome=$("#kNome"), dove=$("#kDove");
+    if(id==="__altro"){
+      nome.readOnly=false; nome.placeholder="NOME_DELLA_VARIABILE"; nome.value="";
+      dove.style.display="none"; nome.focus(); return;
+    }
+    const c=catalogo.find(x=>x.id===id);
+    if(!c){ nome.readOnly=true; nome.value=""; nome.placeholder="scegli un servizio qui accanto"; dove.style.display="none"; return; }
+    nome.readOnly=true; nome.value=c.nome;
+    $("#kTipo").value=c.tipo;
+    dove.style.display="flex";
+    dove.querySelector("span:last-child").innerHTML="Dove trovarla: <b>"+esc(c.dove)+"</b>";
+  }
+  $("#kServizio").onchange=e=>{ applicaServizio(e.target.value); $("#kRefuso").style.display="none"; };
+
+  // riconoscimento dal valore incollato
+  function riconosci(v){
+    v=(v||"").trim().toLowerCase(); if(!v) return null;
+    let best=null,len=0;
+    for(const c of catalogo) for(const p of (c.prefissi||[]))
+      if(v.startsWith(p.toLowerCase()) && p.length>len){ best=c; len=p.length; }
+    return best;
+  }
+  $("#kVal").addEventListener("input",()=>{
+    if($("#kServizio").value==="__altro") return;
+    const c=riconosci($("#kVal").value);
+    if(c && $("#kServizio").value!==c.id){
+      $("#kServizio").value=c.id; applicaServizio(c.id);
+      msg("#msgChiave","Riconosciuto: "+c.etichetta+". Nome impostato automaticamente.","var(--good)");
+    }
+  });
+
   $("#btnAddChiave").onclick=async()=>{
     const nome=$("#kNome").value.trim(), valore=$("#kVal").value;
-    if(!nome||!valore) return msg("#msgChiave","Servono nome e valore.","#ffb3b3");
+    if(!valore) return msg("#msgChiave","Incolla prima la chiave.","#ffb3b3");
+    if(!nome) return msg("#msgChiave","Scegli il servizio (o «Altro» per scrivere il nome).","#ffb3b3");
     const r=await post("/api/vault",{azione:"imposta",nome,valore,tipo:$("#kTipo").value,note:$("#kNote").value});
     if(!r.ok) return msg("#msgChiave",r.errore||"Non riuscito.","#ffb3b3");
-    $("#kNome").value=$("#kVal").value=$("#kNote").value="";
-    msg("#msgChiave","Custodita come "+r.nome+".","var(--good)");
+    if(r.refuso){
+      const box=$("#kRefuso"); box.style.display="flex";
+      box.querySelector("span:last-child").innerHTML=
+        "Salvata come <code>"+esc(r.nome)+"</code>, ma somiglia molto a <code>"+esc(r.refuso)+"</code>: "+
+        "sembra un refuso. Gli agenti cercano il nome esatto. "+
+        '<button class="btn small" id="btnCorreggi" style="margin-top:8px">Rinomina in '+esc(r.refuso)+'</button>';
+      $("#btnCorreggi").onclick=async()=>{
+        await post("/api/vault",{azione:"imposta",nome:r.refuso,valore,tipo:$("#kTipo").value,note:$("#kNote").value});
+        await post("/api/vault",{azione:"rimuovi",nome:r.nome});
+        box.style.display="none"; msg("#msgChiave","Rinominata in "+r.refuso+".","var(--good)");
+        caricaCassaforte();
+      };
+    } else $("#kRefuso").style.display="none";
+    $("#kVal").value=$("#kNote").value="";
+    msg("#msgChiave","Custodita come "+r.nome+". Gli agenti la vedranno entro pochi secondi.","var(--good)");
     caricaCassaforte();
   };
 

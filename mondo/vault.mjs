@@ -109,7 +109,7 @@ export class Cassaforte {
       usato: prima ? prima.usato : null,
     };
     await this.#salva();
-    return { ok: true, nome: n, avviso: rischioDi(n, valore) };
+    return { ok: true, nome: n, avviso: rischioDi(n, valore), refuso: refusoDi(n) };
   }
 
   async rimuovi(nome) {
@@ -123,15 +123,16 @@ export class Cassaforte {
 
   /** Elenco SICURO: valori mascherati, mai in chiaro. Per la pagina web. */
   elenco() {
-    if (!this.sbloccata) return { sbloccata: false, conPassphrase: this.conPassphrase, chiavi: [] };
+    if (!this.sbloccata) return { sbloccata: false, conPassphrase: this.conPassphrase, chiavi: [], catalogo: CATALOGO };
     const chiavi = Object.entries(this.segreti).map(([nome, s]) => ({
       nome, tipo: s.tipo, note: s.note || "",
       anteprima: maschera(s.valore),
       lunghezza: s.valore.length,
       creato: s.creato, aggiornato: s.aggiornato, usato: s.usato,
       avviso: rischioDi(nome, s.valore),
+      refuso: refusoDi(nome),
     })).sort((a, b) => a.nome.localeCompare(b.nome));
-    return { sbloccata: true, conPassphrase: this.conPassphrase, chiavi };
+    return { sbloccata: true, conPassphrase: this.conPassphrase, chiavi, catalogo: CATALOGO };
   }
 
   /** Valore in chiaro: solo per uso interno (env degli agenti). */
@@ -204,6 +205,70 @@ export class Cassaforte {
     await writeFile(this.file, JSON.stringify(blob, null, 2), "utf8");
     try { await chmod(this.file, 0o600); } catch { /* non su Windows */ }
   }
+}
+
+/**
+ * Catalogo dei servizi noti: nome canonico della variabile, come riconoscere
+ * una chiave dal suo valore, e dove trovarla. Serve a evitare i refusi: il
+ * nome giusto viene proposto, non digitato a mano.
+ */
+export const CATALOGO = [
+  { id: "meshy",       etichetta: "Meshy · avatar 3D",        nome: "MESHY_API_KEY",          tipo: "api",       prefissi: ["msy_"],            dove: "meshy.ai → Settings → API Keys" },
+  { id: "stripe_link", etichetta: "Stripe · link di pagamento",nome: "STRIPE_PAYMENT_LINK",    tipo: "pagamenti", prefissi: ["https://buy.stripe.com"], dove: "Stripe → Prodotti → Link di pagamento" },
+  { id: "stripe_ro",   etichetta: "Stripe · chiave sola lettura", nome: "STRIPE_RESTRICTED_KEY", tipo: "pagamenti", prefissi: ["rk_live_", "rk_test_"], dove: "Stripe → Sviluppatori → Chiavi API → Crea chiave ristretta" },
+  { id: "paypal_link", etichetta: "PayPal · link di incasso",  nome: "PAYPAL_LINK",            tipo: "pagamenti", prefissi: ["https://paypal.me", "https://www.paypal.me"], dove: "paypal.com/paypalme/my/grab" },
+  { id: "paypal_id",   etichetta: "PayPal · client ID",        nome: "PAYPAL_CLIENT_ID",       tipo: "pagamenti", prefissi: [],                  dove: "PayPal Developer → App" },
+  { id: "paypal_sec",  etichetta: "PayPal · client secret",    nome: "PAYPAL_CLIENT_SECRET",   tipo: "pagamenti", prefissi: ["EK-"],             dove: "PayPal Developer → App" },
+  { id: "openai",      etichetta: "OpenAI",                    nome: "OPENAI_API_KEY",         tipo: "api",       prefissi: ["sk-proj-", "sk-"], dove: "platform.openai.com → API keys" },
+  { id: "anthropic",   etichetta: "Anthropic (Claude)",        nome: "ANTHROPIC_API_KEY",      tipo: "api",       prefissi: ["sk-ant-"],         dove: "console.anthropic.com → API keys" },
+  { id: "elevenlabs",  etichetta: "ElevenLabs · voce",         nome: "ELEVENLABS_API_KEY",     tipo: "api",       prefissi: ["sk_"],             dove: "elevenlabs.io → Profile → API key" },
+  { id: "github",      etichetta: "GitHub · token",            nome: "GITHUB_TOKEN",           tipo: "api",       prefissi: ["ghp_", "github_pat_"], dove: "github.com → Settings → Developer settings → Tokens" },
+  { id: "replicate",   etichetta: "Replicate",                 nome: "REPLICATE_API_TOKEN",    tipo: "api",       prefissi: ["r8_"],             dove: "replicate.com → Account → API tokens" },
+  { id: "resend",      etichetta: "Resend · email",            nome: "RESEND_API_KEY",         tipo: "api",       prefissi: ["re_"],             dove: "resend.com → API Keys" },
+];
+
+/** Riconosce il servizio dal valore incollato. */
+export function riconosci(valore) {
+  const v = String(valore || "").trim();
+  if (!v) return null;
+  // il prefisso piu' lungo vince: 'sk-ant-' batte 'sk-', 'rk_live_' batte 'rk_'
+  let migliore = null, lung = 0;
+  for (const c of CATALOGO) {
+    for (const p of c.prefissi) {
+      if (v.toLowerCase().startsWith(p.toLowerCase()) && p.length > lung) { migliore = c; lung = p.length; }
+    }
+  }
+  return migliore;
+}
+
+/** Distanza di edit, per accorgersi dei refusi (MESHY_APY_KEY -> MESHY_API_KEY). */
+function distanza(a, b) {
+  const m = a.length, n = b.length;
+  let prec = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prec[j] + 1, cur[j - 1] + 1, prec[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prec = cur;
+  }
+  return prec[n];
+}
+
+/**
+ * Se il nome assomiglia molto a uno noto ma non coincide, e' quasi certamente
+ * un refuso: lo segnaliamo invece di lasciar salvare una chiave che nessun
+ * agente troverebbe.
+ */
+export function refusoDi(nome) {
+  const n = normalizzaNome(nome);
+  const noti = CATALOGO.map(c => c.nome);
+  if (noti.includes(n)) return null;
+  for (const k of noti) {
+    const d = distanza(n, k);
+    if (d > 0 && d <= 2 && Math.abs(n.length - k.length) <= 2) return k;
+  }
+  return null;
 }
 
 // ---- utilità ---------------------------------------------------------------
