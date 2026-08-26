@@ -50,6 +50,12 @@ Indirizzi, una volta avviato:
 - il mondo — <http://localhost:5178/>
 - il Quartier Generale (chiavi, conti, progetti) — <http://localhost:5178/gestione.html>
 
+## Se la finestra lampeggia e sparisce
+
+Vuol dire che `AVVIA.bat` parte ma si interrompe prima di poterti mostrare
+l'errore. Per leggerlo: apri PowerShell nella cartella e lancia il file da li'
+(`.\AVVIA.bat`) — la finestra resta aperta e il messaggio si vede.
+
 ## Se qualcosa manca
 
 `AVVIA.bat` controlla da solo e te lo dice:
