@@ -195,6 +195,7 @@ class Mondo(object):
         self.resoconto = None
         self.lavori = []
         self.sessione = None
+        self.chiavi = []   # nomi (mai i valori) delle chiavi in Cassaforte
         self.boss = {"id": "boss", "name": u"Orchestratore",
                      "status": "idle", "task": None, "thinking": None}
         self._ultimo_id_inbox = self._id_inbox_corrente()
@@ -208,9 +209,13 @@ class Mondo(object):
         Senza questo, quando nessuno lavora il file diventa 'vecchio', il ponte
         lo scarta e il mondo perde tutti gli agenti."""
         def ciclo():
+            giro = 0
             while True:
                 try:
                     self.pubblica()
+                    giro += 1
+                    if giro % 5 == 0:      # ogni ~10s ricontrolla la Cassaforte
+                        carica_chiavi()
                 except Exception:
                     pass
                 time.sleep(BATTITO_S)
@@ -229,6 +234,7 @@ class Mondo(object):
                 "pending": self.pending,
                 "fullaccess": self.fullaccess,
                 "report": self.resoconto,
+                "chiavi": self.chiavi,
                 "sessione": {"id": self.sessione["id"], "titolo": self.sessione["titolo"]} if self.sessione else None,
                 "sessioni": self.archivio.elenco(),
                 "stats": {
@@ -420,7 +426,9 @@ PORTE_MONDO = range(5178, 5189)
 def carica_chiavi():
     """Preleva le chiavi custodite e le rende disponibili ai comandi come
     variabili d'ambiente. Ritorna solo i NOMI: e' l'unica cosa che gli agenti
-    sapranno."""
+    sapranno. Va richiamata spesso, cosi' le chiavi aggiunte a ecosistema
+    acceso vengono viste senza riavviare."""
+    prima = set(agente.AMBIENTE_CASSAFORTE.keys())
     for porta in PORTE_MONDO:
         try:
             url = "http://127.0.0.1:{}/api/secret".format(porta)
@@ -428,10 +436,19 @@ def carica_chiavi():
                 dati = json.loads(r.read().decode("utf-8"))
             ambiente = dati.get("ambiente") or {}
             agente.AMBIENTE_CASSAFORTE = {str(k): str(v) for k, v in ambiente.items()}
-            return sorted(agente.AMBIENTE_CASSAFORTE.keys())
+            nomi = sorted(agente.AMBIENTE_CASSAFORTE.keys())
+            if MONDO is not None:
+                MONDO.chiavi = nomi
+                nuove = set(nomi) - prima
+                if nuove:
+                    MONDO.evento(u"Cassaforte",
+                                 u"nuove chiavi disponibili: " + u", ".join(sorted(nuove)),
+                                 "#9d7bff")
+                MONDO.pubblica()
+            return nomi
         except (urllib.error.URLError, OSError, ValueError):
             continue
-    return []
+    return sorted(agente.AMBIENTE_CASSAFORTE.keys())
 
 
 def _righe_chiavi():
@@ -717,6 +734,10 @@ def _prompt_orchestratore(memoria, ripresa=None):
 def gestisci_messaggio(client, memoria, testo_utente, storico, ripresa=None):
     """Un giro completo: messaggio -> Orchestratore -> agenti (anche in parallelo) -> risposta."""
     m = MONDO
+    # Rileggi la Cassaforte a ogni turno: cosi' una chiave aggiunta dal
+    # Quartier Generale a ecosistema gia' avviato viene vista subito, senza
+    # dover riavviare nulla.
+    carica_chiavi()
     if not m.sessione:
         m.apri_sessione(testo_utente)
     m.dico(u"Tu", testo_utente, "user", "#e9edf8")
