@@ -213,6 +213,7 @@
       <button class="btn ghost" id="btnVetrina" title="I lavori finiti: guardali davvero">🖼 Vetrina</button>
       <button class="btn ghost" id="btnReport">📋 Resoconto</button>
       <button class="btn ghost" id="btnFull" title="Interruttore volontario: fa passare i comandi pericolosi senza chiedere, solo per questa sessione">🔓 Autorizzazione</button>
+      <button class="btn ghost" id="btnPosta" title="Interruttore volontario: fa partire le mail senza chiedere conferma ogni volta, solo per questa sessione">✉️ Mail libere</button>
       <div class="seg" role="group" aria-label="Velocità">
         <button data-speed="0.5">0.5×</button><button data-speed="1" aria-pressed="true">1×</button><button data-speed="2">2×</button>
       </div>
@@ -300,6 +301,22 @@
   <div class="card">
     <div class="top"><div><h3>Resoconto del lavoro</h3><div class="role" id="repTs"></div></div><button class="close" id="repX">✕</button></div>
     <div class="content"><div class="report" id="repBody"></div></div>
+  </div>
+</div>
+
+<div class="modal" id="mPosta">
+  <div class="card warn">
+    <div class="top"><div><h3>Mail senza conferma</h3><div class="role">solo per questa sessione</div></div><button class="close" id="postaX">✕</button></div>
+    <div class="content">
+      <div class="why">Attivandolo, gli agenti manderanno le mail <b>senza chiederti conferma ogni volta</b>, dall'indirizzo che hai collegato nel Quartier Generale.</div>
+      <div class="why">A differenza di un comando, una mail <b>esce dal tuo computer</b> e arriva a un'altra persona: una volta partita non si richiama.</div>
+      <div class="why">Resta attivo finché non lo spegni o finché non chiudi l'ecosistema. Ogni mail partita così resta <b>tracciata nel flusso in diretta</b>, con destinatario e oggetto.</div>
+      <div class="note">È un interruttore a sé: l'autorizzazione completa sui comandi non lo accende, e questo non accende quella.</div>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" id="postaCancel">Lascia la conferma</button>
+      <button class="btn armed" id="postaOn">Attiva, mando io</button>
+    </div>
   </div>
 </div>
 
@@ -574,6 +591,7 @@ window.ECO_CONFIG = {
 
     // autorizzazione completa
     setFull(!!d.fullaccess);
+    setPosta(!!d.postaLibera);
 
     // resoconto
     if(d.report && JSON.stringify(d.report)!==JSON.stringify(report)){
@@ -1079,6 +1097,28 @@ window.ECO_CONFIG = {
     document.getElementById("warnstrip").classList.toggle("show",v);
     document.getElementById("hdr").classList.toggle("danger",v);
   }
+  const mPosta=document.getElementById("mPosta"), btnPosta=document.getElementById("btnPosta");
+  let postaLibera=false;
+  function setPosta(v){
+    if(v===postaLibera) return;
+    postaLibera=v;
+    btnPosta.className="btn "+(v?"armed":"ghost");
+    btnPosta.textContent=v?"✉️ Mail libere ATTIVE":"✉️ Mail libere";
+    logLine("Sistema", v?"#ff9f6b":"#8a96b3",
+            v?"invio mail senza conferma ATTIVO":"le mail tornano a chiedere conferma");
+  }
+  btnPosta.onclick=async()=>{
+    if(postaLibera){ try{await invia({type:"posta_libera",value:false});}catch(e){} setPosta(false); }
+    else mPosta.classList.add("open");
+  };
+  document.getElementById("postaOn").onclick=async()=>{
+    mPosta.classList.remove("open");
+    try{ await invia({type:"posta_libera",value:true}); setPosta(true); }
+    catch(e){ alert("Serve l'ecosistema avviato in locale."); }
+  };
+  document.getElementById("postaCancel").onclick=()=>mPosta.classList.remove("open");
+  document.getElementById("postaX").onclick=()=>mPosta.classList.remove("open");
+
   btnFull.onclick=async()=>{
     if(fullaccess){ try{await invia({type:"fullaccess",value:false});}catch(e){} setFull(false); }
     else mFull.classList.add("open");
@@ -1291,8 +1331,8 @@ window.ECO_CONFIG = {
     if(!vRAF) animViewer();
   }
   document.getElementById("mClose").onclick=()=>mAgent.classList.remove("open");
-  for(const m of [mAgent,mReport,mFull,mSess]) m.addEventListener("click",e=>{if(e.target===m)m.classList.remove("open");});
-  window.addEventListener("keydown",e=>{if(e.key==="Escape")for(const m of [mAgent,mReport,mFull,mSess])m.classList.remove("open");});
+  for(const m of [mAgent,mReport,mFull,mSess,mPosta]) m.addEventListener("click",e=>{if(e.target===m)m.classList.remove("open");});
+  window.addEventListener("keydown",e=>{if(e.key==="Escape")for(const m of [mAgent,mReport,mFull,mSess,mPosta])m.classList.remove("open");});
   window.addEventListener("resize",()=>{if(mAgent.classList.contains("open"))resizeViewer();});
 
   // ===================== INPUT SCENA =====================

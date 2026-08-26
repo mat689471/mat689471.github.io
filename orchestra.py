@@ -317,6 +317,7 @@ class Mondo(object):
         self.handoff = []
         self.pending = None
         self.fullaccess = False
+        self.posta_libera = False   # invii senza conferma: interruttore suo
         self.resoconto = None
         self.lavori = []
         self.sessione = None
@@ -375,6 +376,7 @@ class Mondo(object):
                 "handoffs": self.handoff[-8:],
                 "pending": self.pending,
                 "fullaccess": self.fullaccess,
+                "postaLibera": self.posta_libera,
                 "report": self.resoconto,
                 "chiavi": self.chiavi,
                 "competenze": self.competenze,
@@ -535,6 +537,12 @@ class Mondo(object):
                         self.agenti.pop("personale", None)
                     self.dico(u"Orchestratore",
                               u"Bentornato al comando. Dimmi cosa ti serve.", "boss", "#f5b942")
+                self.pubblica()
+            if v.get("type") == "posta_libera":
+                self.posta_libera = bool(v.get("value"))
+                self.evento(u"Tu", u"invio mail senza conferma " +
+                            (u"ATTIVATO" if self.posta_libera else u"disattivato"),
+                            "#ff9f6b" if self.posta_libera else "#8a96b3")
                 self.pubblica()
             if v.get("type") == "fullaccess":
                 self.fullaccess = bool(v.get("value"))
@@ -883,9 +891,16 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
                     ogg = str(args.get("oggetto", ""))
                     corpo = str(args.get("testo", ""))
                     m.evento(nome_ag, u"✉️ chiede di scrivere a " + a[:40], colore)
-                    ok = m.chiedi_approvazione(
-                        u"a: {}\noggetto: {}\n\n{}".format(a, ogg, corpo[:800]),
-                        u"mandare una mail a {}".format(a), sempre=True)
+                    # L'interruttore delle mail e' separato da quello dei comandi:
+                    # dare mano libera sul proprio computer non e' la stessa cosa
+                    # che darla su quello che esce e arriva ad altre persone.
+                    if m.posta_libera:
+                        m.evento(nome_ag, u"✉️ invio senza conferma (interruttore attivo)", "#ff9f6b")
+                        ok = True
+                    else:
+                        ok = m.chiedi_approvazione(
+                            u"a: {}\noggetto: {}\n\n{}".format(a, ogg, corpo[:800]),
+                            u"mandare una mail a {}".format(a), sempre=True)
                     if not ok:
                         contenuto = json.dumps({"errore": u"l'utente non ha autorizzato l'invio"},
                                                ensure_ascii=False)
@@ -1504,9 +1519,16 @@ def gestisci_messaggio_personale(client, memoria, testo_utente, storico):
                     ogg = str(args.get("oggetto", ""))
                     corpo = str(args.get("testo", ""))
                     m.evento(u"Il tuo Agente", u"✉️ chiede di scrivere a " + a[:40], ag["color"])
-                    ok = m.chiedi_approvazione(
-                        u"a: {}\noggetto: {}\n\n{}".format(a, ogg, corpo[:800]),
-                        u"mandare una mail a {}".format(a), sempre=True)
+                    # L'interruttore delle mail e' separato da quello dei comandi:
+                    # dare mano libera sul proprio computer non e' la stessa cosa
+                    # che darla su quello che esce e arriva ad altre persone.
+                    if m.posta_libera:
+                        m.evento(u"Il tuo Agente", u"✉️ invio senza conferma (interruttore attivo)", "#ff9f6b")
+                        ok = True
+                    else:
+                        ok = m.chiedi_approvazione(
+                            u"a: {}\noggetto: {}\n\n{}".format(a, ogg, corpo[:800]),
+                            u"mandare una mail a {}".format(a), sempre=True)
                     if not ok:
                         contenuto = json.dumps({"errore": u"l'utente non ha autorizzato l'invio"},
                                                ensure_ascii=False)

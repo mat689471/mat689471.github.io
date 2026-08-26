@@ -100,7 +100,7 @@ const server = http.createServer(async (req, res) => {
           if (type === "message") {
             voce.text = String(p.text || "").slice(0, 2000).trim();
             if (!voce.text) { res.writeHead(400, JSONH); return res.end('{"ok":false,"err":"vuoto"}'); }
-          } else if (type === "fullaccess" || type === "agente_personale") {
+          } else if (type === "fullaccess" || type === "agente_personale" || type === "posta_libera") {
             voce.value = !!p.value;
           } else if (type === "riprendi" || type === "elimina_sessione") {
             // 'id' è il numero d'ordine nella coda: il lavoro da riprendere va

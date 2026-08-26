@@ -157,10 +157,15 @@ di prova, altrimenti l'accesso viene rifiutato.
 
 ### Come mandano gli agenti
 
-Con lo strumento `manda_email`, e **ogni singolo invio passa dalla tua
-autorizzazione** nel mondo — anche con l'autorizzazione completa attiva. Un
-comando sbagliato resta sul tuo computer; una mail sbagliata è già a casa di
-qualcun altro. Se preferisci senza conferma, si toglie.
+Con lo strumento `manda_email`. Di partenza ogni invio ti chiede conferma nel
+mondo; se preferisci che partano da sole c'è il pulsante **✉️ Mail libere** nella
+barra in alto, con la stessa logica dell'autorizzazione sui comandi: si accende
+apposta, vale solo per la sessione in corso, e ogni mail partita resta tracciata
+nel flusso in diretta con destinatario e oggetto.
+
+I due interruttori sono **separati**: l'autorizzazione completa sui comandi non
+accende le mail, e viceversa. Dare mano libera sul proprio computer non è la
+stessa cosa che darla su quello che esce e arriva ad altre persone.
 
 I permessi restano cifrati in `dati/account.enc`, con la stessa chiave della
 Cassaforte, e non escono dal tuo computer.
