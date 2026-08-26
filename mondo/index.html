@@ -136,7 +136,13 @@
   .why{font-size:12.5px;color:var(--muted);line-height:1.55}
   .why b{color:var(--ink);font-weight:500}
   .report{font-size:13px;line-height:1.65;color:var(--muted);white-space:pre-wrap;word-break:break-word}
-  #viewer{width:100%;height:280px;background:radial-gradient(600px 400px at 50% 40%,#141f38,#0a1020);display:block}
+  #viewer,#viewerImg{width:100%;height:280px;background:radial-gradient(600px 400px at 50% 40%,#141f38,#0a1020);display:block}
+  #viewerImg{object-fit:contain;padding:14px}
+  .vErr{display:none;height:280px;align-items:center;justify-content:center;text-align:center;
+        background:radial-gradient(600px 400px at 50% 40%,#141f38,#0a1020);color:var(--faint);
+        font-family:"JetBrains Mono",monospace;font-size:12px;line-height:1.6;padding:20px;
+        white-space:pre-line}
+  .vErr.show{display:flex}
   .kv{display:flex;justify-content:space-between;gap:12px;font-size:13px}
   .kv b{color:var(--muted);font-weight:500}
   .note{font-size:12px;color:var(--faint);line-height:1.5;border-top:1px solid var(--border-soft);padding-top:10px}
@@ -296,10 +302,12 @@
   <div class="card">
     <div class="top"><div><h3 id="mName">—</h3><div class="role" id="mRole">—</div></div><button class="close" id="mClose">✕</button></div>
     <canvas id="viewer"></canvas>
+    <img id="viewerImg" alt="Avatar dell'agente" style="display:none">
+    <div id="viewerErr" class="vErr">Immagine non caricata</div>
     <div class="content">
       <div class="kv"><b>Stato</b><span id="mStatus">—</span></div>
       <div class="kv"><b>Compito</b><span id="mTask">—</span></div>
-      <div class="kv"><b>Avatar 3D</b><span id="mAvatar">—</span></div>
+      <div class="kv"><b>Avatar</b><span id="mAvatar">—</span></div>
       <div class="note" id="mNote"></div>
     </div>
   </div>
@@ -319,6 +327,10 @@ window.ECO_CONFIG = {
 (() => {
   "use strict";
   const CFG = window.ECO_CONFIG;
+  // Percorso relativo alla pagina: funziona sia dal server locale sia se la
+  // cartella mondo/ viene aperta da un'altra posizione. Se il file manca, il
+  // visore lo dice invece di restare vuoto (vedi setupViewer).
+  const AVATAR_ORCHESTRATORE = "avatar-nucleus.svg";
   const reduce = matchMedia("(prefers-reduced-motion:reduce)").matches;
   const cv = document.getElementById("world"), ctx = cv.getContext("2d");
   let CW=0, CH=0, DPR=1;
@@ -360,9 +372,13 @@ window.ECO_CONFIG = {
                       x:PLAZA.x, y:PLAZA.y, w:PLAZA.w, h:PLAZA.h};
 
   // ===================== ABITANTI =====================
+  // L'Orchestratore parte con un avatar disegnato (nessuna rete, nessuna chiave).
+  // Se poi l'ecosistema gli genera un modello Meshy, il registro avatar lo
+  // sostituisce da solo: il .glb ha sempre la precedenza sull'immagine.
   const boss={id:"boss",name:"Orchestratore",role:"boss",color:"#f5b942",kind:"boss",
     gx:DAIS.gx,gy:DAIS.gy,path:[],state:"idle",progress:0,task:null,thinking:null,
-    bob:Math.random()*6,blink:rnd(2,4),look:0,bubble:null,talk:0,walk:0,_img:null};
+    bob:Math.random()*6,blink:rnd(2,4),look:0,bubble:null,talk:0,walk:0,
+    _img:null,avatarImage:AVATAR_ORCHESTRATORE,avatarGlb:null};
   const tu={id:"tu",name:"Tu",role:"utente",color:"#e9edf8",kind:"user",
     gx:TU.gx,gy:TU.gy,path:[],state:"idle",progress:0,task:null,
     bob:Math.random()*6,blink:rnd(2,5),look:0,bubble:null,talk:0,walk:0,_img:null};
@@ -1076,7 +1092,42 @@ window.ECO_CONFIG = {
     for(const sx of[-1,1]){const e=new THREE.Mesh(new THREE.SphereGeometry(.08,12,12),em);e.position.set(.16*sx,1.7,.36);g.add(e);}
     return g;
   }
+  /**
+   * Cosa mostrare nella scheda di un agente, in ordine di preferenza:
+   *   1. un modello 3D .glb  → il visore Three.js
+   *   2. un'immagine         → mostrata così com'è (nessuna rete, nessuna libreria)
+   *   3. niente              → segnaposto 3D nel colore dell'agente
+   * Se l'immagine non si carica mostriamo il motivo: un riquadro vuoto non
+   * direbbe niente, e il segnaposto 3D richiederebbe internet per Three.js.
+   */
+  const vImg=document.getElementById("viewerImg"), vErr=document.getElementById("viewerErr");
+  function mostraSolo(quale){
+    viewerC.style.display = quale==="3d" ? "block" : "none";
+    vImg.style.display    = quale==="img" ? "block" : "none";
+    vErr.classList.toggle("show", quale==="err");
+  }
+
   async function setupViewer(a){
+    // Un'immagine senza modello 3D: niente Three.js, niente attesa di rete.
+    if(a.avatarImage && !a.avatarGlb){
+      if(vRAF){cancelAnimationFrame(vRAF);vRAF=0;}
+      mostraSolo("img");
+      document.getElementById("mAvatar").textContent="immagine";
+      document.getElementById("mNote").textContent="Avatar immagine: "+a.avatarImage;
+      vImg.onerror=()=>{
+        // il file non c'e' o il percorso e' sbagliato: non lasciare il riquadro vuoto.
+        // Nominiamo il file che ha fallito davvero, non quello che ci aspettavamo.
+        mostraSolo("err");
+        vErr.textContent="Non riesco a caricare "+(vImg.getAttribute("src")||"l'immagine")+
+          "\nControlla che il file esista nella cartella mondo/ (o in avatar/).";
+        document.getElementById("mAvatar").textContent="immagine non trovata";
+      };
+      vImg.onload=()=>mostraSolo("img");
+      vImg.src=a.avatarImage;
+      return;
+    }
+
+    mostraSolo("3d");
     const {THREE,GLTFLoader}=await ensureThree();
     if(!vRenderer){
       vRenderer=new THREE.WebGLRenderer({canvas:viewerC,antialias:true,alpha:true});
@@ -1151,6 +1202,7 @@ window.ECO_CONFIG = {
     }
   }
 
+  loadAvatar(boss);   // il volto dell'Orchestratore, disponibile da subito
   resize(); renderRoster(); renderChat(); renderFeed(); renderPreview(); updateStats();
   cam.zoom=Math.max(.7,Math.min(1.1,CW/1100));
   setMode("off");
