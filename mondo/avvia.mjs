@@ -89,9 +89,14 @@ const server = http.createServer(async (req, res) => {
           if (type === "message") {
             voce.text = String(p.text || "").slice(0, 2000).trim();
             if (!voce.text) { res.writeHead(400, JSONH); return res.end('{"ok":false,"err":"vuoto"}'); }
-          } else if (type === "fullaccess") {
+          } else if (type === "fullaccess" || type === "agente_personale") {
             voce.value = !!p.value;
-          } else if (type !== "approve" && type !== "deny") {
+          } else if (type === "riprendi" || type === "elimina_sessione") {
+            // 'id' è il numero d'ordine nella coda: il lavoro da riprendere va
+            // in un campo suo, altrimenti l'ordine dei messaggi si rompe.
+            voce.sessione = String(p.id || p.sessione || "");
+            if (!voce.sessione) { res.writeHead(400, JSONH); return res.end('{"ok":false,"err":"id"}'); }
+          } else if (type !== "approve" && type !== "deny" && type !== "nuova_sessione") {
             res.writeHead(400, JSONH); return res.end('{"ok":false,"err":"tipo"}');
           }
           await appendInbox(voce);

@@ -184,6 +184,7 @@
     </div>
     <div class="controls">
       <span class="badge" id="badge"><span class="d"></span><span id="badgeText">avvio…</span></span>
+      <button class="btn ghost" id="btnPersonale" title="Lo sciame è guidato dall'Orchestratore. Accendi il tuo agente personale per mettere lui al comando.">🧑‍💼 Il mio Agente</button>
       <button class="btn ghost" id="btnSessioni">📚 Lavori <span id="badgeSess" style="display:none"></span></button>
       <button class="btn ghost" id="btnNuova">✚ Nuovo</button>
       <a class="btn ghost" href="./gestione.html">🏛️ Quartier Generale</a>
@@ -353,6 +354,10 @@ window.ECO_CONFIG = {
   // Da qui entrano i nuovi agenti: compaiono nella Sala Comando e poi
   // raggiungono a piedi la loro stanza.
   const ENTRATA={gx:11.5, gy:9.6};
+  // La Sala Comando non è una stanza vera: qui bastano i confini della piazza
+  // perché il tuo agente possa camminarci e restare accanto a te.
+  const SALA_COMANDO={id:"comando", name:"Sala Comando", color:"#f5b942",
+                      x:PLAZA.x, y:PLAZA.y, w:PLAZA.w, h:PLAZA.h};
 
   // ===================== ABITANTI =====================
   const boss={id:"boss",name:"Orchestratore",role:"boss",color:"#f5b942",kind:"boss",
@@ -376,9 +381,11 @@ window.ECO_CONFIG = {
   function ensureAgent(a){
     let w=agents.get(a.id);
     if(!w){
-      const room=roomById[a.room]||roomById.sviluppo;
-      const slot=postoLibero(room);
-      const desk=deskOf(room,slot);
+      // il tuo agente personale sta accanto a te, nella Sala Comando
+      const inComando = a.room==="comando";
+      const room=inComando ? SALA_COMANDO : (roomById[a.room]||roomById.sviluppo);
+      const slot=inComando ? 0 : postoLibero(room);
+      const desk=inComando ? {gx:TU.gx+1.5, gy:TU.gy+0.5} : deskOf(room,slot);
       // nasce all'ingresso e raggiunge la stanza a piedi
       // il colore va assegnato SUBITO: gli effetti di comparsa lo usano
       w={id:a.id,kind:"worker",room,slot,desk,gx:ENTRATA.gx,gy:ENTRATA.gy,path:[],
@@ -403,7 +410,7 @@ window.ECO_CONFIG = {
   const chatMsgs=[]; const feedItems=[]; const seenEvents=new Set();
   let stats={done:0,messages:0,comandi:0};
   let preview=null, report=null, pending=null, fullaccess=false, objective=null;
-  let sessioni=[], sessioneCorrente=null;
+  let sessioni=[], sessioneCorrente=null, personale=false;
   let selected=null, speed=1, paused=false, hudAcc=0;
   const cam={x:0,y:0,zoom:1,follow:false};
   const fx=[]; // effetti: spawn, pacchetti di passaggio
@@ -516,6 +523,9 @@ window.ECO_CONFIG = {
 
     // archivio dei lavori
     if(Array.isArray(d.sessioni)){ sessioni=d.sessioni; sessioneCorrente=d.sessione||null; renderSessioni(); }
+
+    // chi comanda: Orchestratore o il tuo agente personale
+    setPersonale(!!d.personale);
 
     // cosa hanno in dotazione gli agenti: chiavi (solo i nomi), Skill, strumenti MCP
     renderDotazione(d.chiavi, d.competenze, d.strumentiMcp);
@@ -950,6 +960,26 @@ window.ECO_CONFIG = {
     catch(e){ logLine("Sistema","#ff9f6b","serve l'ecosistema avviato in locale"); }
   };
   document.getElementById("repX").onclick=()=>mReport.classList.remove("open");
+
+  // ===================== CHI COMANDA =====================
+  // Lo sciame è guidato dall'Orchestratore e funziona senza il tuo agente.
+  // Questo interruttore mette al comando il tuo agente personale, quando vuoi.
+  const btnPers=document.getElementById("btnPersonale");
+  function setPersonale(v){
+    if(v===personale) return;
+    personale=v;
+    btnPers.className="btn "+(v?"":"ghost");
+    btnPers.textContent=v?"🧑‍💼 Il mio Agente · AL COMANDO":"🧑‍💼 Il mio Agente";
+    document.querySelector(".tagline").textContent = v
+      ? "Al comando c'è il tuo agente personale: parli con lui, e quando serve una squadra la chiede all'Orchestratore."
+      : "Parli con l'Orchestratore nella Sala Comando: è lui che decide chi mettere al lavoro e ti riporta i risultati.";
+    chatInput.placeholder = v ? "Scrivi al tuo Agente…" : "Scrivi all'Orchestratore…";
+  }
+  btnPers.onclick=async()=>{
+    const nuovo=!personale;
+    try{ await invia({type:"agente_personale",value:nuovo}); setPersonale(nuovo); }
+    catch(e){ logLine("Sistema","#ff9f6b","serve l'ecosistema avviato in locale"); }
+  };
 
   // ===================== ARCHIVIO DEI LAVORI =====================
   const mSess=document.getElementById("mSess"), sessBody=document.getElementById("sessBody");

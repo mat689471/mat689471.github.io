@@ -247,6 +247,7 @@ class Mondo(object):
         self.competenze = []      # Skill di Claude Code a disposizione
         self.strumenti_mcp = []   # strumenti offerti dai server MCP
         self.avatars = {}         # chi indossa quale avatar 3D
+        self.personale = False    # True = comanda il tuo agente personale
         self.boss = {"id": "boss", "name": u"Orchestratore",
                      "status": "idle", "task": None, "thinking": None}
         self._ultimo_id_inbox = self._id_inbox_corrente()
@@ -289,6 +290,7 @@ class Mondo(object):
                 "competenze": self.competenze,
                 "strumentiMcp": self.strumenti_mcp,
                 "avatars": self.avatars,
+                "personale": self.personale,
                 "sessione": {"id": self.sessione["id"], "titolo": self.sessione["titolo"]} if self.sessione else None,
                 "sessioni": self.archivio.elenco(),
                 "stats": {
@@ -411,7 +413,8 @@ class Mondo(object):
         try:
             with io.open(FILE_INBOX, "r", encoding="utf-8") as f:
                 voci = json.load(f).get("items", [])
-            return max([v.get("id", 0) for v in voci]) if voci else 0
+            numeri = [v["id"] for v in voci if isinstance(v.get("id"), (int, float))]
+            return max(numeri) if numeri else 0
         except (OSError, ValueError):
             return 0
 
@@ -421,11 +424,26 @@ class Mondo(object):
                 voci = json.load(f).get("items", [])
         except (OSError, ValueError):
             return []
-        voci = [v for v in voci if v.get("id", 0) > self._ultimo_id_inbox]
-        voci.sort(key=lambda v: v.get("id", 0))
+        voci = [v for v in voci if isinstance(v.get("id"), (int, float))
+                and v["id"] > self._ultimo_id_inbox]
+        voci.sort(key=lambda v: v["id"])
         if voci:
             self._ultimo_id_inbox = voci[-1]["id"]
         for v in voci:
+            if v.get("type") == "agente_personale":
+                self.personale = bool(v.get("value"))
+                if self.personale:
+                    self.evento(u"Tu", u"hai messo al comando il tuo agente personale", "#f5b942")
+                    self.dico(u"Il tuo Agente",
+                              u"Eccomi, comando io. Dimmi pure: se serve una squadra "
+                              u"la chiedo all'Orchestratore.", "agent", "#f5b942")
+                else:
+                    self.evento(u"Tu", u"il comando torna all'Orchestratore", "#8a96b3")
+                    with self._lock:
+                        self.agenti.pop("personale", None)
+                    self.dico(u"Orchestratore",
+                              u"Bentornato al comando. Dimmi cosa ti serve.", "boss", "#f5b942")
+                self.pubblica()
             if v.get("type") == "fullaccess":
                 self.fullaccess = bool(v.get("value"))
                 self.evento(u"Tu", u"autorizzazione completa " +
@@ -1043,6 +1061,8 @@ def avvia(client, memoria):
 
     print(u"\n Ecosistema avviato. L'Orchestratore e' in ascolto.")
     print(u" Ruoli disponibili: {}".format(len(RUOLI)))
+    print(u" Al comando: l'Orchestratore (lo sciame lavora anche senza il tuo agente)")
+    print(u" Il tuo agente personale si accende dal mondo, quando vuoi.")
     print(u" Competenze (Skill): {}".format(len(COMPETENZE)))
     print(u" Avatar applicati: {}".format(avatar.elenco_testuale()))
     print(u" Strumenti MCP: {}{}".format(
@@ -1073,15 +1093,18 @@ def avvia(client, memoria):
                     testo = v["text"].strip()
                     print(u"\n[dal mondo] {}".format(testo))
                     try:
-                        gestisci_messaggio(client, memoria, testo, storico, ripresa)
+                        if MONDO.personale:
+                            gestisci_messaggio_personale(client, memoria, testo, storico)
+                        else:
+                            gestisci_messaggio(client, memoria, testo, storico, ripresa)
                         ripresa = None
                     except Exception as e:
                         MONDO.dico(u"Orchestratore", spiega_errore(e), "boss", "#ff9f6b")
                         MONDO.chiudi_sessione("interrotta")
                         print(u"[errore] {}".format(e))
 
-                elif tipo == "riprendi" and v.get("id"):
-                    s = MONDO.riprendi_sessione(v["id"])
+                elif tipo == "riprendi" and v.get("sessione"):
+                    s = MONDO.riprendi_sessione(v["sessione"])
                     if s:
                         storico = []
                         ripresa = ARCHIVIO.riassunto(s)
@@ -1089,6 +1112,10 @@ def avvia(client, memoria):
                                    u"Ho ripreso «{}». Ecco dove eravamo rimasti — dimmi come proseguire.".format(s["titolo"]),
                                    "boss", "#f5b942")
                         print(u"\n[dal mondo] ripresa sessione: {}".format(s["titolo"]))
+
+                elif tipo == "agente_personale":
+                    storico = []          # cambia chi comanda: si riparte puliti
+                    ripresa = None
 
                 elif tipo == "nuova_sessione":
                     MONDO.chiudi_sessione("completata")
@@ -1102,8 +1129,8 @@ def avvia(client, memoria):
                     MONDO.dico(u"Orchestratore", u"Nuova sessione. Di cosa ti occupi adesso?",
                                "boss", "#f5b942")
 
-                elif tipo == "elimina_sessione" and v.get("id"):
-                    ARCHIVIO.elimina(v["id"])
+                elif tipo == "elimina_sessione" and v.get("sessione"):
+                    ARCHIVIO.elimina(v["sessione"])
                     MONDO.pubblica()
 
             time.sleep(0.5)
@@ -1112,3 +1139,170 @@ def avvia(client, memoria):
             MONDO.chiudi_sessione("interrotta")
             mcp.ferma_tutti()
             break
+
+
+# ===========================================================================
+# Il tuo Agente personale
+# ---------------------------------------------------------------------------
+# Lo sciame funziona benissimo da solo: l'Orchestratore riceve le richieste,
+# decide e mette al lavoro gli specialisti. Il tuo agente personale (quello
+# di agente.py, con la sua memoria e le sue skill) e' FACOLTATIVO.
+#
+# Quando lo accendi dal mondo, passa al comando: sei tu a parlare con lui,
+# e' lui a lavorare, e quando serve una squadra la chiede all'Orchestratore.
+# Quando lo spegni, torna tutto all'Orchestratore.
+# ===========================================================================
+
+TOOLS_PERSONALE = agente.TOOLS + [
+    {
+        "name": "affida_allo_sciame",
+        "description": (u"Affida un lavoro all'Orchestratore e alla sua squadra di "
+                        u"specialisti, e ne attende il risultato. Usalo quando il compito "
+                        u"e' ampio, ha parti indipendenti, o richiede competenze diverse "
+                        u"dalle tue: loro possono lavorare in parallelo."),
+        "input_schema": {"type": "object",
+                         "properties": {"compito": {"type": "string"}},
+                         "required": ["compito"]},
+    },
+    {
+        "name": "anteprima",
+        "description": u"Mostra all'utente un'anteprima del lavoro (testo, codice, elenco).",
+        "input_schema": {"type": "object",
+                         "properties": {"titolo": {"type": "string"},
+                                        "contenuto": {"type": "string"}},
+                         "required": ["titolo", "contenuto"]},
+    },
+]
+
+
+def _prompt_personale(memoria, skills):
+    base = agente.costruisci_system_prompt(memoria, skills)
+    return base + u"\n".join([
+        u"",
+        u"",
+        u"--- Sei nell'ECOSISTEMA ---",
+        u"Sei l'agente personale dell'utente e in questo momento sei TU al comando.",
+        u"Parli direttamente con lui: rispondi nel testo, non serve nessuno strumento",
+        u"per farlo. Quello che scrivi compare nella sua Sala Comando.",
+        u"Hai a disposizione una squadra: con 'affida_allo_sciame' passi un lavoro",
+        u"all'Orchestratore, che sceglie gli specialisti e li fa lavorare in parallelo.",
+        u"Usala per i compiti ampi; le cose rapide falle tu.",
+        u"Insisti fino al risultato: se qualcosa fallisce, cambia strada e riprova.",
+    ] + _righe_chiavi() + competenze.righe_per_prompt(COMPETENZE) + mcp.righe_per_prompt())
+
+
+def gestisci_messaggio_personale(client, memoria, testo_utente, storico):
+    """Un giro con il tuo agente personale al comando."""
+    m = MONDO
+    carica_chiavi()
+    if not m.sessione:
+        m.apri_sessione(testo_utente)
+    m.dico(u"Tu", testo_utente, "user", "#e9edf8")
+
+    ag = m.crea_agente("personale", nome=u"Il tuo Agente",
+                       specialita=u"il tuo agente personale, con la tua memoria e le tue skill",
+                       stanza="comando")
+    aid = ag["id"]
+    m.agg(aid, status="working", task=testo_utente[:90], progress=0.05)
+    m.boss_stato("idle", None)
+
+    skills = agente.elenca_skills()
+    system = _prompt_personale(memoria, skills)
+    storico.append({"role": "user", "content": testo_utente})
+    passi = 0
+
+    while passi < MAX_PASSI_ORCHESTRATORE:
+        passi += 1
+        try:
+            risposta = client.messages.create(
+                model=agente.MODELLO, max_tokens=2048, system=system,
+                tools=TOOLS_PERSONALE, messages=storico,
+            )
+        except Exception as e:
+            m.dico(u"Il tuo Agente", spiega_errore(e), "agent", ag["color"])
+            break
+        storico.append({"role": "assistant", "content": risposta.content})
+
+        testo = u" ".join([b.text for b in risposta.content if b.type == "text"]).strip()
+        if testo:
+            m.dico(u"Il tuo Agente", testo, "agent", ag["color"])
+
+        if risposta.stop_reason != "tool_use":
+            break
+
+        risultati = []
+        finito = False
+        for b in risposta.content:
+            if b.type != "tool_use":
+                continue
+            args = b.input or {}
+            try:
+                if b.name == "esegui_comando":
+                    cmd = args.get("comando", "")
+                    m.agg(aid, message=cmd[:60],
+                          progress=min(0.9, 0.1 + passi / float(MAX_PASSI_ORCHESTRATORE)))
+                    m.evento(u"Il tuo Agente", u"$ " + cmd[:70], ag["color"])
+                    with _lock_esecuzione:
+                        esito = agente.gestisci_esecuzione(cmd)
+                    contenuto = json.dumps(esito, ensure_ascii=False)[:6000]
+
+                elif b.name == "affida_allo_sciame":
+                    compito = args.get("compito", "")
+                    m.passaggio(u"Il tuo Agente", u"Orchestratore", compito[:60])
+                    m.agg(aid, status="waiting", message=u"attende lo sciame")
+                    m.boss_stato("dispatching", compito[:80])
+                    esito = esegui_specialista(client, "code", compito)
+                    m.boss_stato("idle", None)
+                    m.agg(aid, status="working", message=None)
+                    m.passaggio(u"Orchestratore", u"Il tuo Agente", u"riporta il risultato")
+                    contenuto = json.dumps({"risultato": esito}, ensure_ascii=False)[:6000]
+
+                elif b.name == "anteprima":
+                    m.agg(aid, preview={"title": args.get("titolo", ""),
+                                        "body": (args.get("contenuto") or "")[:4000],
+                                        "agent": u"Il tuo Agente", "color": ag["color"]})
+                    contenuto = json.dumps({"ok": True})
+
+                elif b.name == "ricorda":
+                    agente.aggiungi_fatto(memoria, args.get("chiave", ""), args.get("valore", ""))
+                    m.evento(u"Il tuo Agente", u"🧠 ricorda: " + str(args.get("chiave", ""))[:50], ag["color"])
+                    contenuto = json.dumps({"ok": True})
+
+                elif b.name == "salva_skill":
+                    percorso = agente.salva_skill(args.get("nome_file", "skill"),
+                                                  args.get("descrizione", ""),
+                                                  args.get("codice", ""))
+                    m.evento(u"Il tuo Agente", u"📖 nuova skill: " + os.path.basename(percorso), ag["color"])
+                    contenuto = json.dumps({"ok": True, "percorso": percorso}, ensure_ascii=False)
+
+                elif b.name == "esegui_skill":
+                    with _lock_esecuzione:
+                        esito = agente.esegui_skill(args.get("nome_file", ""))
+                    contenuto = json.dumps(esito, ensure_ascii=False)[:6000]
+
+                elif b.name == "obiettivo_completato":
+                    riepilogo = args.get("riepilogo", "")
+                    if riepilogo:
+                        m.dico(u"Il tuo Agente", riepilogo, "agent", ag["color"])
+                    finito = True
+                    contenuto = json.dumps({"ok": True})
+
+                else:
+                    contenuto = json.dumps({"errore": "tool sconosciuto"})
+
+            except Exception as _e:
+                contenuto = json.dumps({"errore": str(_e),
+                                        "suggerimento": u"Non fermarti: prova un'altra strada."},
+                                       ensure_ascii=False)
+                m.evento(u"Il tuo Agente", u"⚠ intoppo: " + str(_e)[:60], "#ff9f6b")
+
+            risultati.append({"type": "tool_result", "tool_use_id": b.id, "content": contenuto})
+
+        storico.append({"role": "user", "content": risultati})
+        if finito:
+            break
+
+    m.agg(aid, status="idle", task=None, progress=0, message=None)
+    m.chiudi_sessione("completata")
+    if len(storico) > 40:
+        del storico[:len(storico) - 40]
