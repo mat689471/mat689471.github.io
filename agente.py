@@ -40,7 +40,10 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 MODELLO = "claude-opus-4-8"
-TIMEOUT_COMANDO = 90  # secondi
+# Alcuni comandi legittimi sono lenti: scaricare un modello 3D da decine di MB
+# supera facilmente il minuto e mezzo. Meglio dare respiro che troncare lavoro
+# buono a meta'.
+TIMEOUT_COMANDO = 240  # secondi
 
 # Percorsi ancorati alla cartella del file sorgente, così l'agente funziona
 # indipendentemente dalla directory da cui viene lanciato.
@@ -85,17 +88,23 @@ _PATTERN_DISTRUTTIVI = [
     (r"\brmdir\b",              "rmdir (rimuove cartelle)"),
     (r"\brd\b",                 "rd (rimuove cartelle)"),
     (r"\brm\b",                 "rm (alias di Remove-Item)"),
-    (r"\bformat\b",             "format (formatta un volume)"),
+    # 'format C:' formatta davvero un volume; 'Format-Table' non c'entra nulla,
+    # quindi pretendiamo la lettera di unita' subito dopo.
+    (r"\bformat(?:\.com)?\s+[A-Za-z]:", "format (formatta un volume)"),
+    (r"\bFormat-Volume\b",      "Format-Volume (formatta un volume)"),
     (r"\breg\s+delete\b",       "reg delete (cancella chiavi di registro)"),
     (r"\bStop-Process\b",       "Stop-Process (termina processi)"),
     (r"\btaskkill\b",           "taskkill (termina processi)"),
     (r"\bSet-ExecutionPolicy\b","Set-ExecutionPolicy (cambia policy di esecuzione)"),
-    # Flag pericolosi ovunque compaiano nel comando.
-    (r"-Recurse\b",             "-Recurse (operazione ricorsiva)"),
-    (r"-Force\b",               "-Force (forza l'operazione)"),
-    # Redirezione '>' su file (sovrascrive). Escludiamo '>>' (append) verificando
-    # che dopo il '>' non ci sia un altro '>'.
-    (r">(?!>)",                 "redirect > su file (sovrascrive)"),
+    # Redirezione '>' che sovrascrive un file. Escludiamo le freccine '->',
+    # l'append '>>', i confronti '-ge'/'>=' e le redirezioni di flusso '2>':
+    # comparivano in stringhe di messaggio e facevano scattare falsi allarmi.
+    (r"(?<![-<>=!0-9])>(?!>)",  "redirect > su file (sovrascrive)"),
+    # '-Force' e '-Recurse' da soli non dicono nulla: 'New-Item -Force' crea una
+    # cartella, non distrugge niente. Sono rischiosi quando accompagnano un
+    # comando che puo' sovrascrivere dati gia' esistenti.
+    (r"\b(?:Copy|Move|Rename)-Item\b[^\n]*-Force\b", "sovrascrive la destinazione (-Force)"),
+    (r"\bSet-Content\b[^\n]*-Force\b",               "sovrascrive un file (-Force)"),
 ]
 
 # Precompiliamo i pattern in modo case-insensitive per efficienza e chiarezza.
@@ -133,14 +142,19 @@ def classifica_comando(comando):
     if not comando or not comando.strip():
         return (False, None)
 
-    # Comandi fidati: passano senza chiedere nulla.
-    for regex in _REGEX_FIDATI:
-        if regex.search(comando):
-            return (False, None)
-
+    # I pattern distruttivi vengono PRIMA della lista fidata: un comando puo'
+    # cominciare in modo innocuo e finire male ('Get-Date > file' sovrascrive,
+    # 'Get-ChildItem | Remove-Item' cancella). Chi apre il comando non decide
+    # da solo che l'intera riga e' sicura.
     for regex, etichetta in _REGEX_DISTRUTTIVI:
         if regex.search(comando):
             return (True, etichetta)
+
+    # Nessun pericolo trovato: i comandi fidati sono la conferma esplicita che
+    # quella riga e' di uso quotidiano e non va messa in discussione.
+    for regex in _REGEX_FIDATI:
+        if regex.search(comando):
+            return (False, None)
 
     return (False, None)
 

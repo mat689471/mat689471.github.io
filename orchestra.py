@@ -78,6 +78,32 @@ TIMEOUT_APPROVAZIONE = 600
 BATTITO_S = 2.0
 
 
+def scrivi_atomico(percorso, testo, tentativi=6):
+    """
+    Scrive un file in modo sicuro anche su Windows.
+
+    Su Windows il rinomino fallisce con 'Accesso negato' se un altro programma
+    (il ponte, l'antivirus, l'indicizzatore) sta leggendo il file proprio in
+    quell'istante. Riproviamo qualche volta a distanza di pochi millisecondi;
+    se non ci riusciamo, meglio saltare questo aggiornamento che interrompere
+    il lavoro: il battito ripubblichera' fra pochissimo.
+    """
+    tmp = percorso + ".tmp"
+    for i in range(tentativi):
+        try:
+            with io.open(tmp, "w", encoding="utf-8") as f:
+                f.write(testo)
+            os.replace(tmp, percorso)
+            return True
+        except OSError:
+            time.sleep(0.05 * (i + 1))
+    try:
+        os.remove(tmp)
+    except OSError:
+        pass
+    return False
+
+
 def _ora():
     return datetime.now().strftime("%H:%M:%S")
 
@@ -115,10 +141,7 @@ class Archivio(object):
 
     def salva(self):
         with self._lock:
-            tmp = FILE_SESSIONI + ".tmp"
-            with io.open(tmp, "w", encoding="utf-8") as f:
-                f.write(json.dumps(self.dati, ensure_ascii=False, indent=2))
-            os.replace(tmp, FILE_SESSIONI)
+            scrivi_atomico(FILE_SESSIONI, json.dumps(self.dati, ensure_ascii=False, indent=2))
 
     def nuova(self, obiettivo):
         with self._lock:
@@ -250,10 +273,7 @@ class Mondo(object):
                 "_generatoIl": _oggi(),
                 "_epoch": int(time.time() * 1000),
             }
-            tmp = FILE_LIVE + ".tmp"
-            with io.open(tmp, "w", encoding="utf-8") as f:
-                f.write(json.dumps(dati, ensure_ascii=False, indent=2))
-            os.replace(tmp, FILE_LIVE)
+            scrivi_atomico(FILE_LIVE, json.dumps(dati, ensure_ascii=False, indent=2))
 
     # -- sessioni ----------------------------------------------------------
     def apri_sessione(self, obiettivo):
@@ -563,6 +583,15 @@ def _prompt_specialista(ag):
         u"Se ti serve una competenza che non hai, usa 'chiedi_a_collega'.",
         u"Quando hai finito chiama 'consegna': sara' l'Orchestratore a parlare con l'utente.",
         u"Sii concreto e sintetico. Non chiedere permessi: ci pensa il sistema.",
+        u"",
+        u"INSISTI FINO AL RISULTATO. Un comando che fallisce non e' la fine del lavoro:",
+        u"- leggi l'errore, capiscine la causa e riprova in modo diverso;",
+        u"- se un comando va in timeout, spezzalo in passi piu' piccoli;",
+        u"- se una strada e' bloccata, cercane un'altra per lo stesso obiettivo;",
+        u"- verifica sempre l'esito (il file esiste? e' della dimensione giusta?)",
+        u"  invece di darlo per buono.",
+        u"Consegna solo quando hai un risultato vero. Se davvero non e' possibile,",
+        u"consegna spiegando cosa hai provato e cosa manca: mai lasciare a meta'.",
     ] + _righe_chiavi()
       + competenze.righe_per_prompt(COMPETENZE)
       + mcp.righe_per_prompt())
@@ -609,71 +638,79 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
                 continue
             args = b.input or {}
 
-            if b.name == "esegui_comando":
-                cmd = args.get("comando", "")
-                m.agg(aid, message=cmd[:60],
-                      progress=min(0.9, 0.1 + passi / float(MAX_PASSI_AGENTE)))
-                m.evento(nome_ag, u"$ " + cmd[:70], colore)
-                with _lock_esecuzione:      # un comando di sistema per volta
-                    esito = agente.gestisci_esecuzione(cmd)
-                contenuto = json.dumps(esito, ensure_ascii=False)[:6000]
+            try:
+                if b.name == "esegui_comando":
+                    cmd = args.get("comando", "")
+                    m.agg(aid, message=cmd[:60],
+                          progress=min(0.9, 0.1 + passi / float(MAX_PASSI_AGENTE)))
+                    m.evento(nome_ag, u"$ " + cmd[:70], colore)
+                    with _lock_esecuzione:      # un comando di sistema per volta
+                        esito = agente.gestisci_esecuzione(cmd)
+                    contenuto = json.dumps(esito, ensure_ascii=False)[:6000]
 
-            elif b.name == "avanzamento":
-                p = max(0.0, min(100.0, float(args.get("percentuale", 0)))) / 100.0
-                m.agg(aid, progress=p, message=args.get("cosa") or None)
-                contenuto = json.dumps({"ok": True})
+                elif b.name == "avanzamento":
+                    p = max(0.0, min(100.0, float(args.get("percentuale", 0)))) / 100.0
+                    m.agg(aid, progress=p, message=args.get("cosa") or None)
+                    contenuto = json.dumps({"ok": True})
 
-            elif b.name == "anteprima":
-                m.agg(aid, preview={"title": args.get("titolo", ""),
-                                    "body": (args.get("contenuto") or "")[:4000],
-                                    "agent": nome_ag, "color": colore})
-                m.evento(nome_ag, u"anteprima: " + args.get("titolo", ""), colore)
-                contenuto = json.dumps({"ok": True})
+                elif b.name == "anteprima":
+                    m.agg(aid, preview={"title": args.get("titolo", ""),
+                                        "body": (args.get("contenuto") or "")[:4000],
+                                        "agent": nome_ag, "color": colore})
+                    m.evento(nome_ag, u"anteprima: " + args.get("titolo", ""), colore)
+                    contenuto = json.dumps({"ok": True})
 
-            elif b.name == "chiedi_a_collega":
-                altro = args.get("ruolo", "research")
-                domanda = args.get("domanda", "")
-                if profondita >= 1:
-                    contenuto = json.dumps({"errore": u"catena troppo lunga: rispondi con quello che sai"},
-                                           ensure_ascii=False)
+                elif b.name == "chiedi_a_collega":
+                    altro = args.get("ruolo", "research")
+                    domanda = args.get("domanda", "")
+                    if profondita >= 1:
+                        contenuto = json.dumps({"errore": u"catena troppo lunga: rispondi con quello che sai"},
+                                               ensure_ascii=False)
+                    else:
+                        nome_altro = RUOLI.get(altro, (altro,))[0]
+                        m.passaggio(nome_ag, nome_altro, domanda[:60])
+                        m.agg(aid, status="waiting", message=u"attende " + nome_altro)
+                        risp = esegui_specialista(client, altro,
+                                                  u"Un collega ti chiede: " + domanda,
+                                                  profondita=profondita + 1)
+                        m.passaggio(nome_altro, nome_ag, u"risponde")
+                        m.agg(aid, status="working", message=None)
+                        contenuto = json.dumps({"collega": nome_altro, "risposta": risp},
+                                               ensure_ascii=False)[:4000]
+
+                elif b.name == "leggi_competenza":
+                    nome_c = args.get("nome", "")
+                    m.agg(aid, message=u"consulta «{}»".format(nome_c)[:60])
+                    m.evento(nome_ag, u"📖 apre la competenza «{}»".format(nome_c), colore)
+                    sk = competenze.leggi(nome_c)
+                    contenuto = (json.dumps(sk, ensure_ascii=False)[:22000] if sk
+                                 else json.dumps({"errore": u"competenza non trovata: " + nome_c},
+                                                 ensure_ascii=False))
+
+                elif b.name == "usa_strumento_mcp":
+                    srv = args.get("server", "")
+                    strum = args.get("strumento", "")
+                    m.agg(aid, message=u"{}·{}".format(srv, strum)[:60])
+                    m.evento(nome_ag, u"🔌 {} → {}".format(srv, strum), colore)
+                    with _lock_esecuzione:
+                        esito = mcp.chiama(srv, strum, args.get("argomenti") or {})
+                    contenuto = json.dumps({"risultato": esito}, ensure_ascii=False)[:9000]
+
+                elif b.name == "consegna":
+                    riepilogo = args.get("riepilogo", "")
+                    finito = True
+                    contenuto = json.dumps({"ok": True})
+
                 else:
-                    nome_altro = RUOLI.get(altro, (altro,))[0]
-                    m.passaggio(nome_ag, nome_altro, domanda[:60])
-                    m.agg(aid, status="waiting", message=u"attende " + nome_altro)
-                    risp = esegui_specialista(client, altro,
-                                              u"Un collega ti chiede: " + domanda,
-                                              profondita=profondita + 1)
-                    m.passaggio(nome_altro, nome_ag, u"risponde")
-                    m.agg(aid, status="working", message=None)
-                    contenuto = json.dumps({"collega": nome_altro, "risposta": risp},
-                                           ensure_ascii=False)[:4000]
+                    contenuto = json.dumps({"errore": "tool sconosciuto"})
 
-            elif b.name == "leggi_competenza":
-                nome_c = args.get("nome", "")
-                m.agg(aid, message=u"consulta «{}»".format(nome_c)[:60])
-                m.evento(nome_ag, u"📖 apre la competenza «{}»".format(nome_c), colore)
-                sk = competenze.leggi(nome_c)
-                contenuto = (json.dumps(sk, ensure_ascii=False)[:22000] if sk
-                             else json.dumps({"errore": u"competenza non trovata: " + nome_c},
-                                             ensure_ascii=False))
-
-            elif b.name == "usa_strumento_mcp":
-                srv = args.get("server", "")
-                strum = args.get("strumento", "")
-                m.agg(aid, message=u"{}·{}".format(srv, strum)[:60])
-                m.evento(nome_ag, u"🔌 {} → {}".format(srv, strum), colore)
-                with _lock_esecuzione:
-                    esito = mcp.chiama(srv, strum, args.get("argomenti") or {})
-                contenuto = json.dumps({"risultato": esito}, ensure_ascii=False)[:9000]
-
-            elif b.name == "consegna":
-                riepilogo = args.get("riepilogo", "")
-                finito = True
-                contenuto = json.dumps({"ok": True})
-
-            else:
-                contenuto = json.dumps({"errore": "tool sconosciuto"})
-
+            except Exception as _e:
+                # Un guasto interno non deve fermare l'agente: diventa un esito
+                # che puo' leggere, cosi' cambia strada e prosegue.
+                contenuto = json.dumps({"errore": str(_e),
+                                        "suggerimento": u"Non fermarti: prova un altro modo per arrivare al risultato."},
+                                       ensure_ascii=False)
+                m.evento(nome_ag, u"\u26a0 intoppo: " + str(_e)[:70] + u" \u2014 cerco un'altra strada", "#ff9f6b")
             risultati.append({"type": "tool_result", "tool_use_id": b.id, "content": contenuto})
 
         messaggi.append({"role": "user", "content": risultati})
@@ -777,6 +814,13 @@ def _prompt_orchestratore(memoria, ripresa=None):
         u"- Chiudi SEMPRE il turno con 'rispondi' (o 'resoconto'). Parla italiano,",
         u"  chiaro e breve.",
         u"",
+        u"NON MOLLARE A META'. Se un agente torna con un errore o un lavoro",
+        u"incompleto, non fermarti li': rileggi cosa e' andato storto e riassegna",
+        u"il compito con istruzioni corrette, oppure affidalo a un ruolo diverso.",
+        u"Insisti finche' l'obiettivo e' raggiunto. Solo se dopo piu' tentativi",
+        u"resta impossibile, spiega all'utente cosa e' stato provato e cosa serve",
+        u"da lui per proseguire: mai lasciare la richiesta senza una conclusione.",
+        u"",
         u"Ruoli disponibili:",
     ]
     for k, v in RUOLI.items():
@@ -848,14 +892,21 @@ def gestisci_messaggio(client, memoria, testo_utente, storico, ripresa=None):
                             (a.get("istruzioni") or "")[:60])
 
             def lavora(b):
+                # Se un agente incontra un guasto, l'Orchestratore deve poterlo
+                # sapere e riprovare: mai far cadere tutto il turno.
                 a = b.input or {}
-                if b.name == "assegna":
-                    return b, esegui_specialista(client, a.get("ruolo", "code"),
-                                                 a.get("istruzioni", ""))
-                return b, esegui_specialista(client, a.get("ruolo_base", "code"),
-                                             a.get("istruzioni", ""),
-                                             nome=a.get("nome"),
-                                             specialita=a.get("competenza"))
+                try:
+                    if b.name == "assegna":
+                        return b, esegui_specialista(client, a.get("ruolo", "code"),
+                                                     a.get("istruzioni", ""))
+                    return b, esegui_specialista(client, a.get("ruolo_base", "code"),
+                                                 a.get("istruzioni", ""),
+                                                 nome=a.get("nome"),
+                                                 specialita=a.get("competenza"))
+                except Exception as e:
+                    return b, (u"L'agente si e' fermato per un problema: {}. "
+                               u"Il compito NON e' stato completato: valuta di "
+                               u"riassegnarlo con istruzioni diverse.".format(e))
 
             with ThreadPoolExecutor(max_workers=min(MAX_AGENTI_PARALLELI, len(incarichi))) as pool:
                 for b, esito in pool.map(lavora, incarichi):
@@ -869,25 +920,32 @@ def gestisci_messaggio(client, memoria, testo_utente, storico, ripresa=None):
         # --- risposte e resoconti ------------------------------------------
         for b in altri:
             args = b.input or {}
-            if b.name == "rispondi":
-                m.dico(u"Orchestratore", args.get("testo", ""), "boss", "#f5b942")
-                contenuto = json.dumps({"ok": True})
-            elif b.name == "leggi_competenza":
-                nome_c = args.get("nome", "")
-                m.pensa(u"consulto la competenza «{}»".format(nome_c))
-                m.evento(u"Orchestratore", u"📖 consulta «{}»".format(nome_c), "#f5b942")
-                sk = competenze.leggi(nome_c)
-                contenuto = (json.dumps(sk, ensure_ascii=False)[:22000] if sk
-                             else json.dumps({"errore": u"competenza non trovata: " + nome_c},
-                                             ensure_ascii=False))
-            elif b.name == "resoconto":
-                with m._lock:
-                    m.resoconto = {"text": args.get("testo", ""), "ts": _ora()}
-                m.dico(u"Orchestratore", u"Ecco il resoconto del lavoro.", "boss", "#f5b942")
-                m.pubblica()
-                contenuto = json.dumps({"ok": True})
-            else:
-                contenuto = json.dumps({"errore": "tool sconosciuto"})
+            try:
+                if b.name == "rispondi":
+                    m.dico(u"Orchestratore", args.get("testo", ""), "boss", "#f5b942")
+                    contenuto = json.dumps({"ok": True})
+                elif b.name == "leggi_competenza":
+                    nome_c = args.get("nome", "")
+                    m.pensa(u"consulto la competenza «{}»".format(nome_c))
+                    m.evento(u"Orchestratore", u"📖 consulta «{}»".format(nome_c), "#f5b942")
+                    sk = competenze.leggi(nome_c)
+                    contenuto = (json.dumps(sk, ensure_ascii=False)[:22000] if sk
+                                 else json.dumps({"errore": u"competenza non trovata: " + nome_c},
+                                                 ensure_ascii=False))
+                elif b.name == "resoconto":
+                    with m._lock:
+                        m.resoconto = {"text": args.get("testo", ""), "ts": _ora()}
+                    m.dico(u"Orchestratore", u"Ecco il resoconto del lavoro.", "boss", "#f5b942")
+                    m.pubblica()
+                    contenuto = json.dumps({"ok": True})
+                else:
+                    contenuto = json.dumps({"errore": "tool sconosciuto"})
+            except Exception as _e:
+                # Un guasto interno non deve fermare il lavoro: lo raccontiamo
+                # all'agente come esito, cosi' puo' correggere e riprovare.
+                contenuto = json.dumps({"errore": str(_e),
+                                        "suggerimento": u"Riprova in modo diverso: cambia strada, non fermarti."},
+                                       ensure_ascii=False)
             risultati.append({"type": "tool_result", "tool_use_id": b.id, "content": contenuto})
 
         # rimetti i risultati nell'ordine dei blocchi richiesti
