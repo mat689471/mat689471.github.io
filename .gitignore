@@ -20,3 +20,7 @@ dati/
 # Avatar generati: pesanti e personali, restano sul tuo computer
 avatar/*
 !avatar/LEGGIMI.md
+
+# I lavori consegnati dagli agenti: roba tua, non del repository
+lavori/*
+!lavori/LEGGIMI.md

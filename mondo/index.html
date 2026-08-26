@@ -147,6 +147,22 @@
   .kv b{color:var(--muted);font-weight:500}
   .note{font-size:12px;color:var(--faint);line-height:1.5;border-top:1px solid var(--border-soft);padding-top:10px}
 
+  .vet-nota{padding:12px 18px;font-size:13px;color:var(--muted);line-height:1.6;border-bottom:1px solid var(--border-soft)}
+  .vet-nota:empty{display:none}
+  .vet-palco{background:#080d18;min-height:340px;display:flex;align-items:center;justify-content:center}
+  .vet-palco iframe{width:100%;height:66vh;border:0;background:#fff;display:block}
+  .vet-palco img{max-width:100%;max-height:66vh;display:block}
+  .vet-palco video{max-width:100%;max-height:66vh;background:#000;display:block}
+  .vet-palco audio{width:min(560px,90%);margin:48px 0}
+  .vet-palco pre{margin:0;padding:18px;width:100%;max-height:66vh;overflow:auto;text-align:left;
+                 font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.65;color:#cfd8ef;white-space:pre-wrap}
+  .vet-vuoto{padding:60px 20px;color:var(--faint);font-size:13px;text-align:center;line-height:1.7}
+  .vet-prec{display:flex;gap:8px;flex-wrap:wrap;padding:12px 18px;border-top:1px solid var(--border-soft)}
+  .vet-prec:empty{display:none}
+  .vet-chip{font-size:11.5px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);
+            background:rgba(255,255,255,.03);color:var(--muted);cursor:pointer;transition:.15s}
+  .vet-chip:hover{color:var(--ink);border-color:var(--gold)}
+  .vet-chip[aria-current="true"]{border-color:var(--gold);color:var(--gold)}
   .dot-chip{font-family:"JetBrains Mono",monospace;font-size:10.5px;padding:5px 9px;border-radius:8px;white-space:nowrap;cursor:default}
   .dot-chip.chiave{border:1px solid rgba(157,123,255,.4);background:rgba(157,123,255,.1);color:var(--violet)}
   .dot-chip.comp{border:1px solid rgba(76,224,165,.4);background:rgba(76,224,165,.1);color:var(--good)}
@@ -194,6 +210,7 @@
       <button class="btn ghost" id="btnSessioni">📚 Lavori <span id="badgeSess" style="display:none"></span></button>
       <button class="btn ghost" id="btnNuova">✚ Nuovo</button>
       <a class="btn ghost" href="./gestione.html">🏛️ Quartier Generale</a>
+      <button class="btn ghost" id="btnVetrina" title="I lavori finiti: guardali davvero">🖼 Vetrina</button>
       <button class="btn ghost" id="btnReport">📋 Resoconto</button>
       <button class="btn ghost" id="btnFull" title="Interruttore volontario: fa passare i comandi pericolosi senza chiedere, solo per questa sessione">🔓 Autorizzazione</button>
       <div class="seg" role="group" aria-label="Velocità">
@@ -283,6 +300,24 @@
   <div class="card">
     <div class="top"><div><h3>Resoconto del lavoro</h3><div class="role" id="repTs"></div></div><button class="close" id="repX">✕</button></div>
     <div class="content"><div class="report" id="repBody"></div></div>
+  </div>
+</div>
+
+<!-- Vetrina: il lavoro finito, guardato per davvero e non solo raccontato -->
+<div class="modal" id="mVetrina">
+  <div class="card" style="width:min(1100px,96vw)">
+    <div class="top">
+      <div><h3 id="vetTitolo">Lavoro finito</h3><div class="role" id="vetChi"></div></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <a class="btn ghost" id="vetApri" target="_blank" rel="noopener">↗ Apri a schermo intero</a>
+        <button class="close" id="vetX">✕</button>
+      </div>
+    </div>
+    <div class="content" style="padding:0">
+      <div id="vetNota" class="vet-nota"></div>
+      <div id="vetPalco" class="vet-palco"></div>
+      <div id="vetPrec" class="vet-prec"></div>
+    </div>
   </div>
 </div>
 
@@ -477,6 +512,14 @@ window.ECO_CONFIG = {
       else { setGoal(w,"wander"); }
     }
     for(const id of [...agents.keys()]) if(!vivi.has(id)) agents.delete(id);
+
+    // Vetrina: quando arriva un lavoro nuovo si apre da sola. E' il momento in
+    // cui l'utente vuole vedere, non leggere che e' pronto.
+    vetrine = Array.isArray(d.vetrine) ? d.vetrine : vetrine;
+    if(d.vetrina && d.vetrina.url !== vetrinaVista){
+      vetrinaVista = d.vetrina.url;
+      apriVetrina(d.vetrina);
+    }
 
     // avatar indossati: chi ha un modello 3D o una faccia
     const av=d.avatars||{};
@@ -903,6 +946,88 @@ window.ECO_CONFIG = {
     prevEl.innerHTML='<div class="prev-head" style="color:'+(preview.color||"#e9edf8")+'">'+esc(preview.title)+'</div>'+
                      '<div class="prev-body">'+esc(preview.body)+'</div>';
   }
+  // ===================== VETRINA =====================
+  // Il lavoro finito va guardato, non raccontato: una pagina si sfoglia, un
+  // video parte, un audio si ascolta. Il tipo lo decide l'estensione del file,
+  // stabilita a monte da orchestra.py.
+  const mVet=document.getElementById("mVetrina"), vetPalco=document.getElementById("vetPalco");
+  let vetrine=[], vetrinaVista=null, vetrinaAperta=null;
+
+  function pesoLeggibile(b){
+    if(!b&&b!==0) return "";
+    return b<1024 ? b+" byte" : b<1048576 ? (b/1024).toFixed(0)+" KB" : (b/1048576).toFixed(1)+" MB";
+  }
+
+  function apriVetrina(v){
+    if(!v) return;
+    vetrinaAperta=v.url;
+    document.getElementById("vetTitolo").textContent=v.titolo||"Lavoro finito";
+    const chi=document.getElementById("vetChi");
+    chi.textContent=[v.agente, v.file, pesoLeggibile(v.peso), v.quando&&v.quando.slice(11,16)]
+                      .filter(Boolean).join(" · ");
+    chi.style.color=v.colore||"var(--muted)";
+    document.getElementById("vetNota").textContent=v.nota||"";
+    document.getElementById("vetApri").href=v.url;
+
+    // niente innerHTML col contenuto dell'agente: gli elementi si costruiscono
+    // uno per uno, cosi' un titolo malizioso resta testo e non diventa markup
+    vetPalco.replaceChildren();
+    let el;
+    if(v.tipo==="html"||v.tipo==="pdf"){
+      el=document.createElement("iframe");
+      el.src=v.url;
+      // la pagina consegnata gira isolata: puo' mostrarsi, non toccare il mondo
+      if(v.tipo==="html") el.setAttribute("sandbox","allow-scripts allow-popups allow-forms");
+      el.setAttribute("title", v.titolo||"anteprima");
+      if(v.tipo==="pdf") el.style.height="72vh";
+    }else if(v.tipo==="immagine"){
+      el=document.createElement("img"); el.src=v.url; el.alt=v.titolo||"";
+    }else if(v.tipo==="video"){
+      el=document.createElement("video"); el.src=v.url; el.controls=true; el.playsInline=true;
+    }else if(v.tipo==="audio"){
+      el=document.createElement("audio"); el.src=v.url; el.controls=true;
+    }else{
+      el=document.createElement("pre"); el.textContent="Carico…";
+      fetch(v.url).then(r=>r.text()).then(t=>{el.textContent=t.slice(0,200000);})
+                  .catch(()=>{el.textContent="Non riesco a leggere "+v.file;});
+    }
+    el.addEventListener("error",()=>{
+      vetPalco.replaceChildren();
+      const p=document.createElement("div"); p.className="vet-vuoto";
+      p.textContent="Non riesco ad aprire "+v.file+".\nIl file potrebbe essere stato spostato o cancellato.";
+      vetPalco.appendChild(p);
+    });
+    vetPalco.appendChild(el);
+
+    // i lavori precedenti, riapribili
+    const prec=document.getElementById("vetPrec");
+    prec.replaceChildren();
+    for(const p of [...vetrine].reverse()){
+      const b=document.createElement("button");
+      b.className="vet-chip"; b.textContent=(p.titolo||p.file).slice(0,40);
+      if(p.url===v.url) b.setAttribute("aria-current","true");
+      b.onclick=()=>apriVetrina(p);
+      prec.appendChild(b);
+    }
+    mVet.classList.add("open");
+  }
+
+  document.getElementById("vetX").onclick=()=>{ mVet.classList.remove("open"); vetPalco.replaceChildren(); };
+  document.getElementById("btnVetrina").onclick=()=>{
+    if(vetrine.length) apriVetrina(vetrine[vetrine.length-1]);
+    else {
+      vetPalco.replaceChildren();
+      const p=document.createElement("div"); p.className="vet-vuoto";
+      p.textContent="Ancora niente da vedere.\nQuando un agente finisce un lavoro guardabile — una pagina, un'immagine, un video — compare qui da solo.";
+      vetPalco.appendChild(p);
+      document.getElementById("vetTitolo").textContent="Vetrina";
+      document.getElementById("vetChi").textContent="";
+      document.getElementById("vetNota").textContent="";
+      document.getElementById("vetPrec").replaceChildren();
+      mVet.classList.add("open");
+    }
+  };
+
   // Cosa hanno in mano gli agenti: chiavi, competenze (Skill) e strumenti MCP.
   let dotazioneVista="";
   function renderDotazione(chiavi,comp,mcpT){

@@ -37,6 +37,13 @@ const MIME = {
   ".svg": "image/svg+xml", ".gif": "image/gif", ".webp": "image/webp",
   ".glb": "model/gltf-binary", ".gltf": "model/gltf+json",
   ".ico": "image/x-icon", ".woff2": "font/woff2",
+  // I lavori consegnati dagli agenti: senza il tipo giusto il browser non
+  // riproduce un audio e non mostra un video, li fa scaricare e basta.
+  ".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime",
+  ".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg", ".m4a": "audio/mp4",
+  ".pdf": "application/pdf",
+  ".txt": "text/plain; charset=utf-8", ".md": "text/plain; charset=utf-8",
+  ".csv": "text/csv; charset=utf-8",
 };
 
 const JSONH = { "Content-Type": "application/json" };
@@ -193,6 +200,12 @@ const server = http.createServer(async (req, res) => {
     if (urlPath.startsWith("/avatar/")) {
       base = path.join(ROOT, "..", "avatar");
       urlPath = urlPath.slice("/avatar".length);
+    }
+    // I lavori finiti dagli agenti: la Vetrina li mostra da qui. Sola lettura,
+    // e solo da questa cartella — il controllo sotto impedisce di risalire.
+    if (urlPath.startsWith("/lavori/")) {
+      base = path.join(ROOT, "..", "lavori");
+      urlPath = urlPath.slice("/lavori".length);
     }
 
     // impedisci di uscire dalla cartella

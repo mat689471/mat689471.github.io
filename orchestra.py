@@ -230,6 +230,58 @@ class Archivio(object):
 # Stato vivo condiviso con la pagina web
 # ===========================================================================
 
+# I file consegnati dagli agenti vivono qui: e' l'unica cartella che il mondo
+# accetta di mostrare, cosi' una consegna non puo' esporre l'intero disco.
+LAVORI_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lavori")
+
+TIPI_VETRINA = {
+    ".html": "html", ".htm": "html",
+    ".png": "immagine", ".jpg": "immagine", ".jpeg": "immagine",
+    ".gif": "immagine", ".webp": "immagine", ".svg": "immagine",
+    ".mp4": "video", ".webm": "video", ".mov": "video",
+    ".mp3": "audio", ".wav": "audio", ".ogg": "audio", ".m4a": "audio",
+    ".pdf": "pdf",
+}
+
+
+def tipo_vetrina(percorso):
+    """Come va mostrato un file: una pagina si sfoglia, un video si guarda."""
+    return TIPI_VETRINA.get(os.path.splitext(percorso)[1].lower(), "testo")
+
+
+def registra_consegna(titolo, percorso, nota, agente, colore):
+    """
+    Prepara un file per la Vetrina. Ritorna (voce, errore).
+
+    Il percorso arriva da un agente, quindi non ci si fida: deve stare dentro
+    'lavori/'. Senza questo controllo un 'consegna ../../.ssh/id_rsa' pubbliche-
+    rebbe una chiave privata sulla pagina.
+    """
+    os.makedirs(LAVORI_DIR, exist_ok=True)
+    pulito = (percorso or u"").strip().replace(u"\\", u"/").lstrip(u"/")
+    if not pulito:
+        return None, u"manca il nome del file"
+    intero = os.path.abspath(os.path.join(LAVORI_DIR, pulito))
+    if os.path.commonpath([intero, os.path.abspath(LAVORI_DIR)]) != os.path.abspath(LAVORI_DIR):
+        return None, u"il file deve stare dentro la cartella 'lavori'"
+    if not os.path.isfile(intero):
+        return None, (u"non trovo il file 'lavori/{}'. Prima salvalo li' dentro, "
+                      u"poi consegnalo.".format(pulito))
+    rel = os.path.relpath(intero, LAVORI_DIR).replace(os.sep, u"/")
+    return {
+        "id": u"{}".format(int(time.time() * 1000)),
+        "titolo": titolo or rel,
+        "file": rel,
+        "url": u"/lavori/" + rel,
+        "tipo": tipo_vetrina(rel),
+        "peso": os.path.getsize(intero),
+        "nota": (nota or u"")[:600],
+        "agente": agente,
+        "colore": colore,
+        "quando": _oggi(),
+    }, None
+
+
 class Mondo(object):
     def __init__(self, archivio):
         self._lock = threading.RLock()
@@ -247,6 +299,8 @@ class Mondo(object):
         self.competenze = []      # Skill di Claude Code a disposizione
         self.strumenti_mcp = []   # strumenti offerti dai server MCP
         self.avatars = {}         # chi indossa quale avatar 3D
+        self.vetrina = None       # il lavoro finito, da vedere davvero
+        self.vetrine = []         # quelli di prima, riapribili
         self.personale = False    # True = comanda il tuo agente personale
         self.boss = {"id": "boss", "name": u"Orchestratore",
                      "status": "idle", "task": None, "thinking": None}
@@ -274,6 +328,17 @@ class Mondo(object):
         self._battito = threading.Thread(target=ciclo, daemon=True)
         self._battito.start()
 
+    # -- vetrina -----------------------------------------------------------
+    def mostra(self, voce):
+        """Mette un lavoro finito in Vetrina: nel mondo si apre da solo."""
+        with self._lock:
+            self.vetrina = voce
+            self.vetrine = [v for v in self.vetrine if v["url"] != voce["url"]]
+            self.vetrine.append(voce)
+        self.evento(voce["agente"], u"🖼 consegna «{}» — guardalo".format(voce["titolo"][:40]),
+                    voce["colore"])
+        self.pubblica()
+
     # -- pubblicazione -----------------------------------------------------
     def pubblica(self):
         with self._lock:
@@ -290,6 +355,8 @@ class Mondo(object):
                 "competenze": self.competenze,
                 "strumentiMcp": self.strumenti_mcp,
                 "avatars": self.avatars,
+                "vetrina": self.vetrina,
+                "vetrine": self.vetrine[-12:],
                 "personale": self.personale,
                 "sessione": {"id": self.sessione["id"], "titolo": self.sessione["titolo"]} if self.sessione else None,
                 "sessioni": self.archivio.elenco(),
@@ -565,6 +632,29 @@ TOOLS_SPECIALISTA = [
                          "required": ["titolo", "contenuto"]},
     },
     {
+        "name": "pubblica_risultato",
+        "description": (
+            u"Fa VEDERE all'utente il lavoro finito, non solo descriverlo. "
+            u"Usalo ogni volta che produci qualcosa di guardabile: una pagina web, "
+            u"un'immagine, un video, un audio, un PDF, un documento. "
+            u"COME SI FA: prima salva il file dentro la cartella 'lavori' del "
+            u"progetto (per esempio 'lavori/sito/index.html'), poi chiama questo "
+            u"strumento col percorso relativo a 'lavori' ('sito/index.html'). "
+            u"Si apre da solo davanti all'utente: una pagina si sfoglia, un video "
+            u"parte, un audio si ascolta. "
+            u"Se hai generato il file con un servizio esterno che restituisce un "
+            u"indirizzo web, scaricalo prima in 'lavori' con un comando, altrimenti "
+            u"l'utente non lo vede."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titolo": {"type": "string", "description": u"come si chiama questo lavoro"},
+                "file": {"type": "string", "description": u"percorso dentro 'lavori', es. 'sito/index.html'"},
+                "nota": {"type": "string", "description": u"cosa deve guardare l'utente, in due righe"},
+            },
+            "required": ["titolo", "file"]},
+    },
+    {
         "name": "chiedi_a_collega",
         "description": (u"Chiede aiuto a un altro agente su un punto specifico e ne "
                         u"attende la risposta. Usalo quando serve una competenza diversa "
@@ -657,6 +747,11 @@ def _prompt_specialista(ag):
         u"Aggiorna spesso 'avanzamento' cosi' l'utente vede a che punto sei.",
         u"Se produci qualcosa di consultabile mostralo con 'anteprima'.",
         u"Se ti serve una competenza che non hai, usa 'chiedi_a_collega'.",
+      u"QUANDO HAI FINITO QUALCOSA DI GUARDABILE - una pagina web, un'immagine, "
+      u"un video, un audio, un PDF - salvalo nella cartella 'lavori' del progetto "
+      u"e chiama 'pubblica_risultato'. L'utente vuole VEDERLO, non sentirselo "
+      u"raccontare. Se un servizio esterno te lo restituisce come indirizzo web, "
+      u"scaricalo prima in 'lavori', altrimenti non lo vede.",
         u"Quando hai finito chiama 'consegna': sara' l'Orchestratore a parlare con l'utente.",
         u"Sii concreto e sintetico. Non chiedere permessi: ci pensa il sistema.",
         u"",
@@ -735,6 +830,16 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
                                         "agent": nome_ag, "color": colore})
                     m.evento(nome_ag, u"anteprima: " + args.get("titolo", ""), colore)
                     contenuto = json.dumps({"ok": True})
+
+                elif b.name == "pubblica_risultato":
+                    voce, err = registra_consegna(args.get("titolo", ""), args.get("file", ""),
+                                                  args.get("nota", ""), nome_ag, colore)
+                    if err:
+                        contenuto = json.dumps({"errore": err}, ensure_ascii=False)
+                    else:
+                        m.mostra(voce)
+                        contenuto = json.dumps({"ok": True, "mostrato": voce["url"],
+                                                "come": voce["tipo"]}, ensure_ascii=False)
 
                 elif b.name == "chiedi_a_collega":
                     altro = args.get("ruolo", "research")
@@ -1199,6 +1304,29 @@ TOOLS_PERSONALE = agente.TOOLS + [
                                         "contenuto": {"type": "string"}},
                          "required": ["titolo", "contenuto"]},
     },
+    {
+        "name": "pubblica_risultato",
+        "description": (
+            u"Fa VEDERE all'utente il lavoro finito, non solo descriverlo. "
+            u"Usalo ogni volta che produci qualcosa di guardabile: una pagina web, "
+            u"un'immagine, un video, un audio, un PDF, un documento. "
+            u"COME SI FA: prima salva il file dentro la cartella 'lavori' del "
+            u"progetto (per esempio 'lavori/sito/index.html'), poi chiama questo "
+            u"strumento col percorso relativo a 'lavori' ('sito/index.html'). "
+            u"Si apre da solo davanti all'utente: una pagina si sfoglia, un video "
+            u"parte, un audio si ascolta. "
+            u"Se hai generato il file con un servizio esterno che restituisce un "
+            u"indirizzo web, scaricalo prima in 'lavori' con un comando, altrimenti "
+            u"l'utente non lo vede."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "titolo": {"type": "string", "description": u"come si chiama questo lavoro"},
+                "file": {"type": "string", "description": u"percorso dentro 'lavori', es. 'sito/index.html'"},
+                "nota": {"type": "string", "description": u"cosa deve guardare l'utente, in due righe"},
+            },
+            "required": ["titolo", "file"]},
+    },
 ]
 
 
@@ -1289,6 +1417,16 @@ def gestisci_messaggio_personale(client, memoria, testo_utente, storico):
                                         "body": (args.get("contenuto") or "")[:4000],
                                         "agent": u"Il tuo Agente", "color": ag["color"]})
                     contenuto = json.dumps({"ok": True})
+
+                elif b.name == "pubblica_risultato":
+                    voce, err = registra_consegna(args.get("titolo", ""), args.get("file", ""),
+                                                  args.get("nota", ""), u"Il tuo Agente", ag["color"])
+                    if err:
+                        contenuto = json.dumps({"errore": err}, ensure_ascii=False)
+                    else:
+                        m.mostra(voce)
+                        contenuto = json.dumps({"ok": True, "mostrato": voce["url"],
+                                                "come": voce["tipo"]}, ensure_ascii=False)
 
                 elif b.name == "ricorda":
                     agente.aggiungi_fatto(memoria, args.get("chiave", ""), args.get("valore", ""))
