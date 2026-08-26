@@ -31,7 +31,16 @@ from datetime import datetime
 try:
     import anthropic
 except ImportError:
-    print("Manca la dipendenza 'anthropic'. Installala con: pip install anthropic")
+    # Su Windows convivono spesso due Python ('py' e 'python'): la libreria
+    # puo' essere installata sull'altro. Nominare l'interprete che sta girando
+    # toglie ogni dubbio su dove vada installata.
+    print("")
+    print("Manca la libreria 'anthropic' per questo Python:")
+    print("  " + sys.executable)
+    print("")
+    print("Installala con questo comando, copiato cosi' com'e':")
+    print('  "%s" -m pip install anthropic' % sys.executable)
+    print("")
     sys.exit(1)
 
 

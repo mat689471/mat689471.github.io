@@ -50,6 +50,21 @@ Indirizzi, una volta avviato:
 - il mondo — <http://localhost:5178/>
 - il Quartier Generale (chiavi, conti, progetti) — <http://localhost:5178/gestione.html>
 
+## Se la finestra degli agenti dice «Manca la libreria 'anthropic'»
+
+Windows tiene spesso **due Python** affiancati, `py` e `python`, che sono due
+installazioni separate con librerie separate. Se hai installato `anthropic` su
+una, l'altra non ce l'ha.
+
+`AVVIA.bat` se ne accorge: prova l'altro interprete e, se manca a entrambi, la
+installa da solo. Se preferisci farlo a mano, dalla cartella del progetto:
+
+```
+py -m pip install anthropic
+```
+
+Se PowerShell risponde che `py` non esiste, usa `python` al posto di `py`.
+
 ## Se la finestra lampeggia e sparisce
 
 Vuol dire che `AVVIA.bat` parte ma si interrompe prima di poterti mostrare

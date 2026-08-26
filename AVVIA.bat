@@ -30,6 +30,38 @@ if not defined PY where python >nul 2>nul
 if not defined PY if %errorlevel%==0 set "PY=python"
 if not defined PY goto manca_python
 
+REM ---- il Python scelto ha la libreria che serve? ----
+REM Su Windows convivono spesso due Python: 'py' e 'python' possono essere due
+REM installazioni diverse, e 'anthropic' puo' stare solo su una delle due.
+REM Prima di arrendersi si prova l'altra, poi la si installa.
+%PY% -c "import anthropic" >nul 2>nul
+if %errorlevel%==0 goto python_pronto
+
+set "ALTRO="
+if /i "%PY%"=="py" set "ALTRO=python"
+if /i "%PY%"=="python" set "ALTRO=py"
+if not defined ALTRO goto installa_libreria
+where %ALTRO% >nul 2>nul
+if errorlevel 1 goto installa_libreria
+%ALTRO% -c "import anthropic" >nul 2>nul
+if errorlevel 1 goto installa_libreria
+echo  Uso %ALTRO%: e' quello che ha la libreria 'anthropic'.
+set "PY=%ALTRO%"
+goto python_pronto
+
+:installa_libreria
+echo  Manca la libreria 'anthropic', senza la quale gli agenti non partono.
+echo  La installo adesso ^(serve internet, ci vuole qualche secondo^)...
+echo.
+%PY% -m pip install anthropic
+echo.
+%PY% -c "import anthropic" >nul 2>nul
+if errorlevel 1 goto libreria_ko
+echo  Installata.
+echo.
+
+:python_pronto
+
 REM ---- siamo nella cartella giusta? ----
 if not exist "mondo\avvia.mjs" goto cartella_sbagliata
 if not exist "agente.py" goto cartella_sbagliata
@@ -72,6 +104,20 @@ echo.
 echo  Scaricalo da   https://python.org
 echo  IMPORTANTE: durante l'installazione spunta "Add Python to PATH",
 echo  altrimenti Windows non lo trova.
+echo.
+pause
+exit /b 1
+
+
+:libreria_ko
+echo.
+echo  [errore] Non sono riuscito a installare 'anthropic'.
+echo.
+echo  Provala a mano, con questo comando:
+echo     %PY% -m pip install anthropic
+echo.
+echo  Se dice che pip non esiste, reinstalla Python da https://python.org
+echo  spuntando "Add Python to PATH".
 echo.
 pause
 exit /b 1
