@@ -455,6 +455,15 @@ window.ECO_CONFIG = {
     }
     for(const id of [...agents.keys()]) if(!vivi.has(id)) agents.delete(id);
 
+    // avatar indossati: chi ha un modello 3D o una faccia
+    const av=d.avatars||{};
+    for(const [chi,a] of Object.entries(av)){
+      const w = chi==="boss" ? boss : agents.get(chi);
+      if(!w) continue;
+      if(a.glb) w.avatarGlb=a.glb;
+      if(a.img && a.img!==w.avatarImage){ w.avatarImage=a.img; loadAvatar(w); }
+    }
+
     // chat
     if(Array.isArray(d.chat)){
       const nuovi=d.chat.filter(m=>!chatMsgs.some(x=>x.id===m.id&&x.text===m.text));

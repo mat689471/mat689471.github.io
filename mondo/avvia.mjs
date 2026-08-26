@@ -159,9 +159,18 @@ const server = http.createServer(async (req, res) => {
 
     let urlPath = decodeURIComponent(req.url.split("?")[0]);
     if (urlPath === "/") urlPath = "/index.html";
+
+    // Gli avatar 3D stanno in <progetto>/avatar/, fuori da mondo/: li serviamo
+    // da lì così il visore può caricarli.
+    let base = ROOT;
+    if (urlPath.startsWith("/avatar/")) {
+      base = path.join(ROOT, "..", "avatar");
+      urlPath = urlPath.slice("/avatar".length);
+    }
+
     // impedisci di uscire dalla cartella
-    const filePath = path.normalize(path.join(ROOT, urlPath));
-    if (!filePath.startsWith(ROOT)) { res.writeHead(403); return res.end("Vietato"); }
+    const filePath = path.normalize(path.join(base, urlPath));
+    if (!filePath.startsWith(path.normalize(base))) { res.writeHead(403); return res.end("Vietato"); }
 
     if (!existsSync(filePath)) { res.writeHead(404); return res.end("Non trovato"); }
     const data = await readFile(filePath);

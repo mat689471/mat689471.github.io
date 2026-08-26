@@ -42,6 +42,29 @@ from concurrent.futures import ThreadPoolExecutor
 import agente       # riusa esecuzione comandi, log e classificazione
 import competenze   # le Skill di Claude Code
 import mcp          # gli strumenti dei server MCP (ruflo)
+import avatar       # gli avatar 3D indossati dagli abitanti
+
+
+def spiega_errore(e):
+    """
+    Traduce gli errori del modello in una frase comprensibile.
+    Un messaggio criptico fa perdere tempo a cercare il problema dove non e'.
+    """
+    t = str(e)
+    if "credit balance is too low" in t:
+        return (u"Il credito dell'API Anthropic e' esaurito. Attenzione: "
+                u"l'abbonamento Claude Pro e il credito API sono due cose "
+                u"separate — l'ecosistema usa il secondo. Si ricarica su "
+                u"console.anthropic.com → Plans & Billing. Non dipende dal "
+                u"lavoro in corso.")
+    if "rate_limit" in t or "429" in t:
+        return u"Troppe richieste in poco tempo: attendi qualche istante e riprova."
+    if "authentication" in t.lower() or "invalid x-api-key" in t.lower():
+        return (u"La chiave ANTHROPIC_API_KEY non e' valida. Controlla la "
+                u"variabile d'ambiente e riavvia l'ecosistema.")
+    if "overloaded" in t.lower() or "529" in t:
+        return u"Il modello e' momentaneamente sovraccarico: riprovo fra poco."
+    return t
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MONDO_DIR = os.path.join(BASE_DIR, "mondo")
@@ -223,6 +246,7 @@ class Mondo(object):
         self.chiavi = []          # nomi (mai i valori) delle chiavi in Cassaforte
         self.competenze = []      # Skill di Claude Code a disposizione
         self.strumenti_mcp = []   # strumenti offerti dai server MCP
+        self.avatars = {}         # chi indossa quale avatar 3D
         self.boss = {"id": "boss", "name": u"Orchestratore",
                      "status": "idle", "task": None, "thinking": None}
         self._ultimo_id_inbox = self._id_inbox_corrente()
@@ -264,6 +288,7 @@ class Mondo(object):
                 "chiavi": self.chiavi,
                 "competenze": self.competenze,
                 "strumentiMcp": self.strumenti_mcp,
+                "avatars": self.avatars,
                 "sessione": {"id": self.sessione["id"], "titolo": self.sessione["titolo"]} if self.sessione else None,
                 "sessioni": self.archivio.elenco(),
                 "stats": {
@@ -560,6 +585,23 @@ TOOLS_SPECIALISTA = [
         },
     },
     {
+        "name": "applica_avatar",
+        "description": (u"Fa indossare un avatar 3D a un abitante del mondo. Il modello .glb "
+                        u"(e l'eventuale immagine) devono stare nella cartella avatar/ del "
+                        u"progetto. Verifica che il file sia completo e lo mostra nel mondo. "
+                        u"Usalo dopo aver generato un avatar, per applicarlo davvero."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "abitante": {"type": "string",
+                             "description": u"'orchestratore' oppure l'id di un ruolo (code, qa, design, ...)"},
+                "modello": {"type": "string", "description": u"nome del file .glb dentro avatar/"},
+                "immagine": {"type": "string", "description": u"immagine per la faccia (facoltativa)"},
+            },
+            "required": ["abitante"],
+        },
+    },
+    {
         "name": "consegna",
         "description": u"Consegna il risultato all'Orchestratore e chiudi il tuo compito.",
         "input_schema": {"type": "object",
@@ -622,7 +664,7 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
                 tools=TOOLS_SPECIALISTA, messages=messaggi,
             )
         except Exception as e:
-            riepilogo = u"(errore: {})".format(e)
+            riepilogo = u"(non ho potuto proseguire: {})".format(spiega_errore(e))
             break
         messaggi.append({"role": "assistant", "content": risposta.content})
 
@@ -695,6 +737,17 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
                     with _lock_esecuzione:
                         esito = mcp.chiama(srv, strum, args.get("argomenti") or {})
                     contenuto = json.dumps({"risultato": esito}, ensure_ascii=False)[:9000]
+
+                elif b.name == "applica_avatar":
+                    chi = args.get("abitante", "")
+                    esito = avatar.applica(chi, args.get("modello"), args.get("immagine"))
+                    if esito.get("ok"):
+                        m.avatars = avatar.per_mondo()
+                        m.evento(nome_ag, u"🎭 avatar applicato a {}".format(esito["abitante"]), colore)
+                        m.pubblica()
+                    else:
+                        m.evento(nome_ag, u"🎭 avatar non applicato: " + esito.get("errore", "")[:60], "#ff9f6b")
+                    contenuto = json.dumps(esito, ensure_ascii=False)
 
                 elif b.name == "consegna":
                     riepilogo = args.get("riepilogo", "")
@@ -864,8 +917,7 @@ def gestisci_messaggio(client, memoria, testo_utente, storico, ripresa=None):
                 tools=TOOLS_ORCHESTRATORE, messages=storico,
             )
         except Exception as e:
-            m.dico(u"Orchestratore", u"Ho avuto un problema con il modello: {}".format(e),
-                   "boss", "#ff9f6b")
+            m.dico(u"Orchestratore", spiega_errore(e), "boss", "#ff9f6b")
             break
         storico.append({"role": "assistant", "content": risposta.content})
 
@@ -979,6 +1031,9 @@ def avvia(client, memoria):
     MONDO.competenze = [{"nome": s["nome"], "descrizione": s["descrizione"], "fonte": s["fonte"]}
                         for s in COMPETENZE]
 
+    # Avatar gia' presenti nella cartella avatar/ (o assegnati in precedenza).
+    MONDO.avatars = avatar.per_mondo()
+
     # I server MCP (ruflo) portano i loro strumenti agli agenti.
     print(u"")
     avviati = mcp.avvia_tutti(lambda t: print(u" MCP: " + t))
@@ -989,6 +1044,7 @@ def avvia(client, memoria):
     print(u"\n Ecosistema avviato. L'Orchestratore e' in ascolto.")
     print(u" Ruoli disponibili: {}".format(len(RUOLI)))
     print(u" Competenze (Skill): {}".format(len(COMPETENZE)))
+    print(u" Avatar applicati: {}".format(avatar.elenco_testuale()))
     print(u" Strumenti MCP: {}{}".format(
         len(MONDO.strumenti_mcp),
         u" da " + u", ".join(avviati) if avviati else u" (nessun server attivo in mcp.json)"))
@@ -1020,8 +1076,7 @@ def avvia(client, memoria):
                         gestisci_messaggio(client, memoria, testo, storico, ripresa)
                         ripresa = None
                     except Exception as e:
-                        MONDO.dico(u"Orchestratore", u"Ho avuto un problema: {}".format(e),
-                                   "boss", "#ff9f6b")
+                        MONDO.dico(u"Orchestratore", spiega_errore(e), "boss", "#ff9f6b")
                         MONDO.chiudi_sessione("interrotta")
                         print(u"[errore] {}".format(e))
 
