@@ -170,6 +170,32 @@ stessa cosa che darla su quello che esce e arriva ad altre persone.
 I permessi restano cifrati in `dati/account.enc`, con la stessa chiave della
 Cassaforte, e non escono dal tuo computer.
 
+## Farsi pagare: l'offerta la costruiscono gli agenti
+
+Un link di pagamento fatto a mano vale per un prezzo solo. Se lo sciame inventa
+un servizio con tre livelli di abbonamento, quei livelli nascono da soli: con
+`crea_offerta` un agente crea su **Stripe e PayPal** il prodotto, i prezzi
+(singoli, mensili o annuali) e i link per pagarli, e li mette nella pagina che
+ha appena costruito.
+
+Cosa serve in Cassaforte:
+
+| Chiave | A cosa serve |
+|---|---|
+| `STRIPE_SECRET_KEY` | creare prodotti, prezzi e link — chiave ristretta con permesso **write** su Prodotti, Prezzi e Link di pagamento |
+| `PAYPAL_CLIENT_ID` + `PAYPAL_CLIENT_SECRET` | i piani di abbonamento PayPal |
+
+Basta uno dei due: quello che manca viene detto, non nascosto.
+
+PayPal fa i link solo per gli **abbonamenti**; per il pagamento singolo resta il
+tuo PayPal.me.
+
+Cosa **non** si può fare da lì, di proposito: incassare, rimborsare, spostare
+denaro, cancellare. Creare un'offerta è reversibile — si archivia — e non muove
+un centesimo finché non è un cliente vero a premere «Paga». Gli agenti non
+vedono mai il valore di una chiave: chiedono al mondo, e il mondo risponde con i
+link.
+
 ## La Vetrina: vedere il lavoro finito
 
 Quando un agente finisce qualcosa di guardabile — una pagina web, un'immagine,

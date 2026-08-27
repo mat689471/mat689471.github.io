@@ -274,6 +274,27 @@ def manda_email(a, oggetto, testo):
     return {"ok": False, "errore": u"il mondo non risponde: e' acceso 'node mondo/avvia.mjs'?"}
 
 
+def crea_offerta(dati):
+    """Chiede al server locale di creare l'offerta: le chiavi le tiene lui."""
+    corpo = json.dumps(dati).encode("utf-8")
+    for porta in range(5178, 5188):
+        try:
+            req = urllib.request.Request(
+                "http://127.0.0.1:{}/api/offerte".format(porta), data=corpo,
+                headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(req, timeout=90) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            try:
+                return {"ok": False,
+                        "errore": json.loads(e.read().decode("utf-8")).get("errore", str(e))}
+            except Exception:
+                return {"ok": False, "errore": u"errore HTTP {}".format(e.code)}
+        except (urllib.error.URLError, OSError, ValueError):
+            continue
+    return {"ok": False, "errore": u"il mondo non risponde: e' acceso 'node mondo/avvia.mjs'?"}
+
+
 def registra_consegna(titolo, percorso, nota, agente, colore):
     """
     Prepara un file per la Vetrina. Ritorna (voce, errore).
@@ -670,6 +691,42 @@ TOOLS_SPECIALISTA = [
                          "required": ["titolo", "contenuto"]},
     },
     {
+        "name": "crea_offerta",
+        "description": (
+            u"Crea l'offerta commerciale vera su Stripe e PayPal: il servizio, i "
+            u"suoi livelli di prezzo e il link per pagarli. Usalo quando il lavoro "
+            u"ha bisogno di essere venduto - un servizio in abbonamento, piu' "
+            u"piani, un pagamento singolo - invece di dire all'utente di creare i "
+            u"link a mano. "
+            u"I link tornano subito e vanno messi nella pagina che hai costruito. "
+            u"Cadenza: 'unatantum' per un pagamento singolo, 'mensile' o 'annuale' "
+            u"per un abbonamento. PayPal fa i link solo per gli abbonamenti; per il "
+            u"pagamento singolo resta il PayPal.me dell'utente. "
+            u"Non incassa e non muove denaro: crea solo l'offerta, che e' "
+            u"reversibile."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string", "description": u"il servizio come lo vede il cliente"},
+                "descrizione": {"type": "string"},
+                "valuta": {"type": "string", "description": u"eur, usd... (predefinito eur)"},
+                "dove": {"type": "string", "description": u"'tutti', 'stripe' o 'paypal'"},
+                "livelli": {
+                    "type": "array",
+                    "description": u"i piani, es. Base/Pro/Studio",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "nome": {"type": "string"},
+                            "prezzo": {"type": "string", "description": u"es. '29' o '29,90'"},
+                            "cadenza": {"type": "string", "description": u"unatantum | mensile | annuale"},
+                        },
+                        "required": ["nome", "prezzo"]},
+                },
+            },
+            "required": ["nome", "livelli"]},
+    },
+    {
         "name": "manda_email",
         "description": (
             u"Manda una mail dall'indirizzo che l'utente ha collegato nel Quartier "
@@ -885,6 +942,15 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
                                         "agent": nome_ag, "color": colore})
                     m.evento(nome_ag, u"anteprima: " + args.get("titolo", ""), colore)
                     contenuto = json.dumps({"ok": True})
+
+                elif b.name == "crea_offerta":
+                    m.evento(nome_ag, u"💳 costruisce l'offerta «{}»".format(
+                        str(args.get("nome",""))[:40]), colore)
+                    esito = crea_offerta(args)
+                    if esito.get("ok"):
+                        quanti = sum(len(o.get("livelli") or []) for o in esito.get("offerte") or [])
+                        m.evento(nome_ag, u"💳 {} link di pagamento pronti".format(quanti), colore)
+                    contenuto = json.dumps(esito, ensure_ascii=False)[:9000]
 
                 elif b.name == "manda_email":
                     a = str(args.get("a", "")).strip()
@@ -1384,6 +1450,42 @@ TOOLS_PERSONALE = agente.TOOLS + [
                          "required": ["titolo", "contenuto"]},
     },
     {
+        "name": "crea_offerta",
+        "description": (
+            u"Crea l'offerta commerciale vera su Stripe e PayPal: il servizio, i "
+            u"suoi livelli di prezzo e il link per pagarli. Usalo quando il lavoro "
+            u"ha bisogno di essere venduto - un servizio in abbonamento, piu' "
+            u"piani, un pagamento singolo - invece di dire all'utente di creare i "
+            u"link a mano. "
+            u"I link tornano subito e vanno messi nella pagina che hai costruito. "
+            u"Cadenza: 'unatantum' per un pagamento singolo, 'mensile' o 'annuale' "
+            u"per un abbonamento. PayPal fa i link solo per gli abbonamenti; per il "
+            u"pagamento singolo resta il PayPal.me dell'utente. "
+            u"Non incassa e non muove denaro: crea solo l'offerta, che e' "
+            u"reversibile."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string", "description": u"il servizio come lo vede il cliente"},
+                "descrizione": {"type": "string"},
+                "valuta": {"type": "string", "description": u"eur, usd... (predefinito eur)"},
+                "dove": {"type": "string", "description": u"'tutti', 'stripe' o 'paypal'"},
+                "livelli": {
+                    "type": "array",
+                    "description": u"i piani, es. Base/Pro/Studio",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "nome": {"type": "string"},
+                            "prezzo": {"type": "string", "description": u"es. '29' o '29,90'"},
+                            "cadenza": {"type": "string", "description": u"unatantum | mensile | annuale"},
+                        },
+                        "required": ["nome", "prezzo"]},
+                },
+            },
+            "required": ["nome", "livelli"]},
+    },
+    {
         "name": "manda_email",
         "description": (
             u"Manda una mail dall'indirizzo che l'utente ha collegato nel Quartier "
@@ -1513,6 +1615,15 @@ def gestisci_messaggio_personale(client, memoria, testo_utente, storico):
                                         "body": (args.get("contenuto") or "")[:4000],
                                         "agent": u"Il tuo Agente", "color": ag["color"]})
                     contenuto = json.dumps({"ok": True})
+
+                elif b.name == "crea_offerta":
+                    m.evento(u"Il tuo Agente", u"💳 costruisce l'offerta «{}»".format(
+                        str(args.get("nome",""))[:40]), ag["color"])
+                    esito = crea_offerta(args)
+                    if esito.get("ok"):
+                        quanti = sum(len(o.get("livelli") or []) for o in esito.get("offerte") or [])
+                        m.evento(u"Il tuo Agente", u"💳 {} link di pagamento pronti".format(quanti), ag["color"])
+                    contenuto = json.dumps(esito, ensure_ascii=False)[:9000]
 
                 elif b.name == "manda_email":
                     a = str(args.get("a", "")).strip()

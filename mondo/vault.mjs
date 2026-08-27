@@ -237,6 +237,7 @@ export const CATALOGO = [
   { id: "meshy",       etichetta: "Meshy · avatar 3D",        nome: "MESHY_API_KEY",          tipo: "api",       prefissi: ["msy_"],            dove: "meshy.ai → Settings → API Keys" },
   { id: "stripe_link", etichetta: "Stripe · link di pagamento",nome: "STRIPE_PAYMENT_LINK",    tipo: "pagamenti", prefissi: ["https://buy.stripe.com"], dove: "Stripe → Prodotti → Link di pagamento" },
   { id: "stripe_ro",   etichetta: "Stripe · chiave sola lettura", nome: "STRIPE_RESTRICTED_KEY", tipo: "pagamenti", prefissi: ["rk_live_", "rk_test_"], dove: "Stripe → Sviluppatori → Chiavi API → Crea chiave ristretta" },
+  { id: "stripe_rw",   etichetta: "Stripe · chiave per creare offerte", nome: "STRIPE_SECRET_KEY", tipo: "pagamenti", prefissi: ["sk_live_", "sk_test_"], dove: "Stripe → Sviluppatori → Chiavi API → Crea chiave ristretta con permesso «write» su Prodotti, Prezzi e Link di pagamento" },
   { id: "paypal_link", etichetta: "PayPal · link di incasso",  nome: "PAYPAL_LINK",            tipo: "pagamenti", prefissi: ["https://paypal.me", "https://www.paypal.me"], dove: "paypal.com/paypalme/my/grab" },
   { id: "paypal_id",   etichetta: "PayPal · client ID",        nome: "PAYPAL_CLIENT_ID",       tipo: "pagamenti", prefissi: [],                  dove: "PayPal Developer → App" },
   { id: "paypal_sec",  etichetta: "PayPal · client secret",    nome: "PAYPAL_CLIENT_SECRET",   tipo: "pagamenti", prefissi: ["EK-"],             dove: "PayPal Developer → App" },

@@ -20,6 +20,7 @@ import { Cassaforte } from "./vault.mjs";
 import { Registro } from "./ledger.mjs";
 import { Strumenti } from "./strumenti.mjs";
 import { Account } from "./account.mjs";
+import { Pagamenti } from "./pagamenti.mjs";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { exec } from "node:child_process";
@@ -55,6 +56,8 @@ const cassaforte = new Cassaforte(DATI);
 const registro = new Registro(DATI);
 const strumenti = new Strumenti(path.join(ROOT, ".."));
 const account = new Account(DATI);
+// La funzione, non i valori: le chiavi restano in Cassaforte fino alla chiamata.
+const pagamenti = new Pagamenti((nome) => cassaforte.valore(nome));
 
 function json(res, code, obj) { res.writeHead(code, JSONH); res.end(JSON.stringify(obj)); }
 function leggiCorpo(req) {
@@ -149,6 +152,18 @@ const server = http.createServer(async (req, res) => {
             default:          return json(res, 400, { ok: false, errore: "azione sconosciuta" });
           }
         } catch (e) { return json(res, 400, { ok: false, errore: e.message }); }
+      }
+      return json(res, 405, { ok: false });
+    }
+
+    // ---- OFFERTE: prodotti, abbonamenti e link creati dagli agenti --------
+    if (apiPath === "/api/offerte") {
+      if (!daLocale(req)) return json(res, 403, { ok: false, errore: "solo da questo computer" });
+      if (req.method === "GET") return json(res, 200, { ok: true, fornitori: pagamenti.quali() });
+      if (req.method === "POST") {
+        const p = await leggiCorpo(req);
+        try { return json(res, 200, await pagamenti.crea(p)); }
+        catch (e) { return json(res, 400, { ok: false, errore: e.message }); }
       }
       return json(res, 405, { ok: false });
     }
