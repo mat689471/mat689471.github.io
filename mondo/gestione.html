@@ -566,7 +566,8 @@
       const passi=[
         ['Apri la console: ', f.console, ''],
         ['Crea credenziali di tipo ', null, f.tipoApp],
-        ['Come indirizzo di ritorno incolla: ', null, d.redirect],
+        ['Se c\'è un campo per l\'indirizzo di ritorno, incolla: ', null, d.redirect],
+        ['Se quel campo non c\'è, va bene lo stesso: le credenziali desktop accettano localhost da sole.', null, ''],
         ['Copia qui sotto i due codici che ti dà.', null, ''],
       ];
       for(const [testo, link, codice] of passi){

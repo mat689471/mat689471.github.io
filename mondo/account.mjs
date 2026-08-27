@@ -42,7 +42,7 @@ export const FORNITORI = {
     extraAutorizza: { access_type: "offline", prompt: "consent" },
     console: "https://console.cloud.google.com/apis/credentials",
     tipoApp: 'Applicazione desktop ("Desktop app")',
-    nota: "Se il tuo progetto Google è «in test», aggiungi il tuo indirizzo fra gli utenti di prova, altrimenti l'accesso viene rifiutato.",
+    nota: "PRIMA di premere il pulsante: nella console, Schermata consenso OAuth → Utenti di prova → aggiungi il tuo indirizzo (tutti quelli che vuoi collegare). Finché il progetto è «in test» Google rifiuta chiunque non sia in quella lista, con «Accesso bloccato». Serve anche abilitare la Gmail API da Libreria.",
   },
   microsoft: {
     nome: "Microsoft",
@@ -58,6 +58,7 @@ export const FORNITORI = {
     extraAutorizza: {},
     console: "https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps",
     tipoApp: 'App desktop ("Mobile and desktop applications")',
+    nota: "Nella registrazione dell'app, in Autenticazione, aggiungi la piattaforma «Mobile and desktop applications».",
   },
 };
 

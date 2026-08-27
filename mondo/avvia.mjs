@@ -167,8 +167,7 @@ const server = http.createServer(async (req, res) => {
     // Dove il fornitore ci rimanda dopo che hai scelto l'account.
     if (apiPath === "/oauth/callback") {
       const q = new URL(req.url, "http://x").searchParams;
-      if (q.get("error"))
-        return paginaEsito(res, false, q.get("error_description") || q.get("error"));
+      if (q.get("error")) return paginaEsito(res, false, spiegaRifiuto(q));
       try {
         const r = await account.completa(q.get("code"), q.get("state"));
         console.log(`\n[mondo] account collegato: ${r.email} (${r.fornitore})`);
@@ -264,6 +263,29 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+/**
+ * Quando il fornitore rifiuta manda un codice, non una spiegazione:
+ * 'access_denied' da solo non dice a nessuno cosa fare. Qui diventa
+ * l'istruzione vera, perche' e' il momento in cui uno e' bloccato.
+ */
+function spiegaRifiuto(q) {
+  const e = q.get("error") || "";
+  const d = q.get("error_description") || "";
+  if (e === "access_denied")
+    return "Google o Microsoft ha rifiutato l'accesso.\n\n"
+         + "Quasi sempre e' perche' il progetto e' «in test» e il tuo indirizzo non e' "
+         + "fra gli utenti di prova. Nella console del fornitore: Schermata consenso "
+         + "OAuth → Utenti di prova → aggiungi il tuo indirizzo, poi riprova.\n\n"
+         + "L'altra possibilita' e' che tu abbia premuto «Annulla» sulla schermata di consenso.";
+  if (e === "redirect_uri_mismatch")
+    return "L'indirizzo di ritorno non coincide con quello registrato nella console del fornitore.";
+  if (e === "invalid_client")
+    return "ID client o segreto sbagliati: ricontrollali nella console del fornitore.";
+  if (/scope/i.test(e + d))
+    return "Sono stati concessi meno permessi del necessario: riprova accettando tutte le richieste.";
+  return [e, d].filter(Boolean).join(" — ") || "il fornitore non ha detto perche'";
+}
+
 /** La scheda che si apre al ritorno dal fornitore: dice com'e' andata. */
 function paginaEsito(res, ok, testo) {
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -274,7 +296,7 @@ place-items:center;height:100vh;margin:0;text-align:center;padding:24px}
 .c{max-width:460px}h1{font-size:22px;margin:0 0 10px}p{color:#8a96b3;line-height:1.6;margin:0 0 8px}
 b{color:${ok ? "#4ce0a5" : "#ff9f6b"}}</style>
 <div class="c"><h1>${ok ? "✓ Account collegato" : "Non e' andata"}</h1>
-<p><b>${esc(testo)}</b></p>
+<p style="white-space:pre-line"><b>${esc(testo)}</b></p>
 <p>${ok ? "Puoi chiudere questa scheda e tornare al Quartier Generale."
         : "Chiudi questa scheda e riprova dal Quartier Generale."}</p></div>`);
 }
