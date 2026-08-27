@@ -295,6 +295,63 @@ def crea_offerta(dati):
     return {"ok": False, "errore": u"il mondo non risponde: e' acceso 'node mondo/avvia.mjs'?"}
 
 
+def dentro_lavori(percorso):
+    """
+    Il percorso completo di un file dentro 'lavori/', oppure un errore.
+
+    Il percorso arriva da un agente, quindi non ci si fida: deve restare li'
+    dentro. Senza questo controllo un 'scrivi ../../.ssh/authorized_keys'
+    sarebbe un modo per farsi dare le chiavi di casa.
+    """
+    os.makedirs(LAVORI_DIR, exist_ok=True)
+    pulito = (percorso or u"").strip().replace(u"\\", u"/").lstrip(u"/")
+    if not pulito:
+        return None, None, u"manca il nome del file"
+    intero = os.path.abspath(os.path.join(LAVORI_DIR, pulito))
+    if os.path.commonpath([intero, os.path.abspath(LAVORI_DIR)]) != os.path.abspath(LAVORI_DIR):
+        return None, None, u"il file deve stare dentro la cartella 'lavori'"
+    return intero, os.path.relpath(intero, LAVORI_DIR).replace(os.sep, u"/"), None
+
+
+def scrivi_file(percorso, contenuto):
+    """
+    Scrive un file cosi' com'e', senza passare da PowerShell.
+
+    Serve perche' una pagina HTML dentro una riga di comando si sfascia: le
+    virgolette del markup chiudono quelle della shell, il dollaro diventa una
+    variabile, e oltre qualche migliaio di caratteri la riga non ci sta
+    proprio. Qui il contenuto viaggia come dato, non come comando.
+    """
+    intero, rel, err = dentro_lavori(percorso)
+    if err:
+        return {"ok": False, "errore": err}
+    testo = contenuto if isinstance(contenuto, str) else str(contenuto)
+    if len(testo) > 400000:
+        return {"ok": False, "errore": u"file troppo grande: scrivilo in piu' pezzi"}
+    try:
+        os.makedirs(os.path.dirname(intero) or LAVORI_DIR, exist_ok=True)
+        scrivi_atomico(intero, testo)
+    except OSError as e:
+        return {"ok": False, "errore": u"non riesco a scrivere: {}".format(e)}
+    return {"ok": True, "file": rel, "caratteri": len(testo),
+            "righe": testo.count(u"\n") + 1}
+
+
+def leggi_file(percorso):
+    """Rilegge un file di 'lavori/': serve a un agente per controllarsi."""
+    intero, rel, err = dentro_lavori(percorso)
+    if err:
+        return {"ok": False, "errore": err}
+    if not os.path.isfile(intero):
+        return {"ok": False, "errore": u"non trovo 'lavori/{}'".format(rel)}
+    try:
+        with io.open(intero, encoding="utf-8", errors="replace") as f:
+            testo = f.read(200000)
+    except OSError as e:
+        return {"ok": False, "errore": u"non riesco a leggere: {}".format(e)}
+    return {"ok": True, "file": rel, "contenuto": testo}
+
+
 def registra_consegna(titolo, percorso, nota, agente, colore):
     """
     Prepara un file per la Vetrina. Ritorna (voce, errore).
@@ -691,6 +748,34 @@ TOOLS_SPECIALISTA = [
                          "required": ["titolo", "contenuto"]},
     },
     {
+        "name": "scrivi_file",
+        "description": (
+            u"Scrive un file dentro la cartella 'lavori' del progetto. "
+            u"USA SEMPRE QUESTO per creare pagine HTML, CSS, JavaScript, testi, "
+            u"configurazioni: NON provare a scriverli con un comando PowerShell. "
+            u"Una pagina HTML dentro una riga di comando si rompe - le virgolette "
+            u"del markup chiudono quelle della shell e oltre qualche migliaio di "
+            u"caratteri la riga non ci sta - mentre qui il contenuto passa intero "
+            u"e come dato. Scrive il file da zero: se esiste lo sostituisce. "
+            u"Le sottocartelle le crea da solo."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "percorso": {"type": "string", "description": u"dentro 'lavori', es. 'sito/index.html'"},
+                "contenuto": {"type": "string", "description": u"il contenuto completo del file"},
+            },
+            "required": ["percorso", "contenuto"]},
+    },
+    {
+        "name": "leggi_file",
+        "description": (u"Rilegge un file che hai scritto in 'lavori', per controllare "
+                        u"che sia davvero come volevi prima di consegnarlo."),
+        "input_schema": {
+            "type": "object",
+            "properties": {"percorso": {"type": "string"}},
+            "required": ["percorso"]},
+    },
+    {
         "name": "crea_offerta",
         "description": (
             u"Crea l'offerta commerciale vera su Stripe e PayPal: il servizio, i "
@@ -859,6 +944,14 @@ def _prompt_specialista(ag):
         u"Aggiorna spesso 'avanzamento' cosi' l'utente vede a che punto sei.",
         u"Se produci qualcosa di consultabile mostralo con 'anteprima'.",
         u"Se ti serve una competenza che non hai, usa 'chiedi_a_collega'.",
+        u"PER CREARE UN FILE usa 'scrivi_file', MAI un comando PowerShell. Una "
+        u"pagina HTML dentro una riga di comando si rompe sulle virgolette e sulla "
+        u"lunghezza: e' il motivo per cui i tentativi falliscono e si ricomincia da "
+        u"capo. Dopo puoi rileggerlo con 'leggi_file' per controllarti.",
+        u"Se il lavoro va VENDUTO - un servizio, dei piani in abbonamento, un prezzo "
+        u"- non dire all'utente di creare i link a mano: 'crea_offerta' crea davvero "
+        u"prodotti e prezzi su Stripe e PayPal e ti restituisce i link, che poi metti "
+        u"nella pagina che hai costruito.",
       u"QUANDO HAI FINITO QUALCOSA DI GUARDABILE - una pagina web, un'immagine, "
       u"un video, un audio, un PDF - salvalo nella cartella 'lavori' del progetto "
       u"e chiama 'pubblica_risultato'. L'utente vuole VEDERLO, non sentirselo "
@@ -942,6 +1035,17 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
                                         "agent": nome_ag, "color": colore})
                     m.evento(nome_ag, u"anteprima: " + args.get("titolo", ""), colore)
                     contenuto = json.dumps({"ok": True})
+
+                elif b.name == "scrivi_file":
+                    esito = scrivi_file(args.get("percorso", ""), args.get("contenuto", ""))
+                    if esito.get("ok"):
+                        m.evento(nome_ag, u"📝 scrive lavori/{} ({} righe)".format(
+                            esito["file"], esito["righe"]), colore)
+                    contenuto = json.dumps(esito, ensure_ascii=False)
+
+                elif b.name == "leggi_file":
+                    contenuto = json.dumps(leggi_file(args.get("percorso", "")),
+                                           ensure_ascii=False)[:12000]
 
                 elif b.name == "crea_offerta":
                     m.evento(nome_ag, u"💳 costruisce l'offerta «{}»".format(
@@ -1450,6 +1554,34 @@ TOOLS_PERSONALE = agente.TOOLS + [
                          "required": ["titolo", "contenuto"]},
     },
     {
+        "name": "scrivi_file",
+        "description": (
+            u"Scrive un file dentro la cartella 'lavori' del progetto. "
+            u"USA SEMPRE QUESTO per creare pagine HTML, CSS, JavaScript, testi, "
+            u"configurazioni: NON provare a scriverli con un comando PowerShell. "
+            u"Una pagina HTML dentro una riga di comando si rompe - le virgolette "
+            u"del markup chiudono quelle della shell e oltre qualche migliaio di "
+            u"caratteri la riga non ci sta - mentre qui il contenuto passa intero "
+            u"e come dato. Scrive il file da zero: se esiste lo sostituisce. "
+            u"Le sottocartelle le crea da solo."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "percorso": {"type": "string", "description": u"dentro 'lavori', es. 'sito/index.html'"},
+                "contenuto": {"type": "string", "description": u"il contenuto completo del file"},
+            },
+            "required": ["percorso", "contenuto"]},
+    },
+    {
+        "name": "leggi_file",
+        "description": (u"Rilegge un file che hai scritto in 'lavori', per controllare "
+                        u"che sia davvero come volevi prima di consegnarlo."),
+        "input_schema": {
+            "type": "object",
+            "properties": {"percorso": {"type": "string"}},
+            "required": ["percorso"]},
+    },
+    {
         "name": "crea_offerta",
         "description": (
             u"Crea l'offerta commerciale vera su Stripe e PayPal: il servizio, i "
@@ -1615,6 +1747,17 @@ def gestisci_messaggio_personale(client, memoria, testo_utente, storico):
                                         "body": (args.get("contenuto") or "")[:4000],
                                         "agent": u"Il tuo Agente", "color": ag["color"]})
                     contenuto = json.dumps({"ok": True})
+
+                elif b.name == "scrivi_file":
+                    esito = scrivi_file(args.get("percorso", ""), args.get("contenuto", ""))
+                    if esito.get("ok"):
+                        m.evento(u"Il tuo Agente", u"📝 scrive lavori/{} ({} righe)".format(
+                            esito["file"], esito["righe"]), ag["color"])
+                    contenuto = json.dumps(esito, ensure_ascii=False)
+
+                elif b.name == "leggi_file":
+                    contenuto = json.dumps(leggi_file(args.get("percorso", "")),
+                                           ensure_ascii=False)[:12000]
 
                 elif b.name == "crea_offerta":
                     m.evento(u"Il tuo Agente", u"💳 costruisce l'offerta «{}»".format(
