@@ -1447,7 +1447,7 @@ window.ECO_CONFIG = {
   document.getElementById("btnReport").onclick=async()=>{
     if(report){ showReport(true); return; }
     try{ await invia({type:"message",text:"Fammi un resoconto del lavoro svolto finora."}); logLine("Tu","#f5b942","ha chiesto un resoconto"); }
-    catch(e){ logLine("Sistema","#ff9f6b","serve l'ecosistema avviato in locale"); }
+    catch(e){ logLine("Sistema","#ff9f6b","resoconto non richiesto: "+e.message); }
   };
   document.getElementById("repX").onclick=()=>mReport.classList.remove("open");
 
@@ -1463,13 +1463,12 @@ window.ECO_CONFIG = {
     document.querySelector(".tagline").textContent = v
       ? "Al comando c'è il tuo agente personale: parli con lui, e quando serve una squadra la chiede all'Orchestratore."
       : "Parli con l'Orchestratore nella Sala Comando: è lui che decide chi mettere al lavoro e ti riporta i risultati.";
-    chatInput.placeholder = (v ? "Scrivi al tuo Agente…" : "Scrivi all'Orchestratore…")
-      + "  (Invio per mandare, Maiusc+Invio per andare a capo)";
+    chatInput.placeholder = v ? "Scrivi al tuo Agente…" : "Scrivi all'Orchestratore…";
   }
   btnPers.onclick=async()=>{
     const nuovo=!personale;
     try{ await invia({type:"agente_personale",value:nuovo}); setPersonale(nuovo); }
-    catch(e){ logLine("Sistema","#ff9f6b","serve l'ecosistema avviato in locale"); }
+    catch(e){ logLine("Sistema","#ff9f6b","interruttore non cambiato: "+e.message); }
   };
 
   // ===================== ARCHIVIO DEI LAVORI =====================
@@ -1512,7 +1511,7 @@ window.ECO_CONFIG = {
     sessBody.querySelectorAll("[data-rip]").forEach(b=>b.onclick=async()=>{
       try{ await invia({type:"riprendi",id:b.dataset.rip}); mSess.classList.remove("open");
            logLine("Tu","#f5b942","riprende un lavoro"); }
-      catch(e){ logLine("Sistema","#ff9f6b","serve l'ecosistema avviato in locale"); }
+      catch(e){ logLine("Sistema","#ff9f6b","lavoro non ripreso: "+e.message); }
     });
     sessBody.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{
       if(!confirm("Eliminare definitivamente questo lavoro dall'archivio?"))return;
@@ -1525,7 +1524,7 @@ window.ECO_CONFIG = {
     if(chatMsgs.length>1 && !confirm("Iniziare un nuovo lavoro? Quello attuale resta salvato nell'archivio."))return;
     try{ await invia({type:"nuova_sessione"}); mSess.classList.remove("open");
          chatMsgs.length=0; renderChat(); agents.clear(); renderRoster(); }
-    catch(e){ logLine("Sistema","#ff9f6b","serve l'ecosistema avviato in locale"); }
+    catch(e){ logLine("Sistema","#ff9f6b","nuovo lavoro non avviato: "+e.message); }
   }
   document.getElementById("btnNuova").onclick=nuovaSessione;
   document.getElementById("sessNuova").onclick=nuovaSessione;
