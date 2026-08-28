@@ -838,9 +838,40 @@
         '<td><span class="mask">'+esc(k.anteprima)+'</span></td>'+
         '<td><span class="chip '+(k.tipo==="pagamenti"?"pag":"api")+'">'+esc(k.tipo)+'</span></td>'+
         '<td>'+esc(k.note||"—")+'</td>'+
-        '<td style="text-align:right"><button class="btn ghost small" data-del="'+esc(k.nome)+'">Rimuovi</button></td>';
+        '<td style="text-align:right;white-space:nowrap">'
+        + ((cass.provabili||[]).includes(k.nome)
+            ? '<button class="btn ghost small" data-prova="'+esc(k.nome)+'" '
+              + 'title="Chiedi al servizio se questa chiave funziona">Prova</button> ' : '')
+        + '<button class="btn ghost small" data-del="'+esc(k.nome)+'">Rimuovi</button></td>';
       tb.appendChild(tr);
+      // una riga sotto dove finisce l'esito della prova
+      const esito=document.createElement("tr");
+      esito.className="riga-esito"; esito.style.display="none";
+      esito.innerHTML='<td colspan="5" style="padding-top:0"></td>';
+      esito.dataset.per=k.nome;
+      tb.appendChild(esito);
     }
+    // «Questa chiave funziona?»: lo chiediamo al servizio invece di dedurlo
+    tb.querySelectorAll("[data-prova]").forEach(b=>b.onclick=async()=>{
+      const nome=b.dataset.prova;
+      const riga=tb.querySelector('.riga-esito[data-per="'+CSS.escape(nome)+'"]');
+      const cella=riga.querySelector("td");
+      riga.style.display=""; b.disabled=true;
+      cella.innerHTML='<div class="avviso"><span class="ic">⏳</span><span>Chiedo a '+esc(nome)+'…</span></div>';
+      try{
+        const r=await post("/api/vault/prova",{nome});
+        const colore={si:"basso",forse:"medio",no:"alto",sconosciuto:"medio"}[r.esito]||"medio";
+        const icona={si:"✓",forse:"?",no:"✕",sconosciuto:"?"}[r.esito]||"?";
+        cella.innerHTML='<div class="avviso '+colore+'"><span class="ic">'+icona+'</span><span>'
+          + '<b>'+esc(r.servizio||nome)+'</b>'+(r.stato?' · risposta '+r.stato:'')+' — '+esc(r.che)
+          + (r.fare?'<br><span style="color:var(--muted)">'+esc(r.fare)+'</span>':'')
+          + '</span></div>';
+      }catch(e){
+        cella.innerHTML='<div class="avviso alto"><span class="ic">✕</span><span>Non riuscito: '+esc(e.message)+'</span></div>';
+      }
+      b.disabled=false;
+    });
+
     tb.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{
       if(!confirm("Rimuovere "+b.dataset.del+"? Gli agenti non potranno più usarla."))return;
       await post("/api/vault",{azione:"rimuovi",nome:b.dataset.del}); caricaCassaforte();

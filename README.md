@@ -148,6 +148,26 @@ Il limite è di 20.000 caratteri — circa dieci pagine. Prima erano 2.000, e il
 taglio avveniva **in silenzio**: la richiesta partiva monca senza che niente lo
 dicesse.
 
+## «Questa chiave funziona?»
+
+Nella Cassaforte, accanto alle chiavi che so provare, c'è il pulsante **Prova**:
+fa una chiamata innocua al servizio e traduce la risposta.
+
+| Risposta | Cosa vuol dire |
+|---|---|
+| **401** | il valore non viene accettato — ricopiala col pulsante «copia» |
+| **403** | la chiave va bene, mancano i permessi — non serve rigenerarla |
+| **404** | non è la chiave: è un nome o un indirizzo sbagliato nella richiesta |
+| **429** | troppo traffico, la chiave probabilmente va bene |
+
+Serve perché una chiave che non va dà sempre lo stesso sintomo — una chiamata
+che fallisce — ma le cause portano a rimedi opposti, e indovinare costa ore.
+
+Un caso a parte: se la risposta **non ha la forma di un errore del servizio**, lo
+dice invece di interpretarla. Un proxy aziendale o un antivirus che ispeziona il
+traffico rispondono con gli stessi codici, e leggerli come «permessi mancanti»
+manda a cercare nel posto sbagliato.
+
 ## Il Negozio
 
 Una stanza a sé nel mondo, in basso: un piano intero con una squadra fissa di sei

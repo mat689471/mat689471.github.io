@@ -26,6 +26,7 @@ mondo/index.html
 mondo/ledger.mjs
 mondo/negozio.mjs
 mondo/pagamenti.mjs
+mondo/prova-chiavi.mjs
 mondo/state.example.json
 mondo/strumenti.mjs
 mondo/vault.mjs

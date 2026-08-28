@@ -22,6 +22,7 @@ import { Strumenti } from "./strumenti.mjs";
 import { Account } from "./account.mjs";
 import { Pagamenti } from "./pagamenti.mjs";
 import { Negozio } from "./negozio.mjs";
+import { provaChiave, CHIAVI_PROVABILI } from "./prova-chiavi.mjs";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { exec } from "node:child_process";
@@ -131,7 +132,7 @@ const server = http.createServer(async (req, res) => {
       if (!daLocale(req)) return json(res, 403, { ok: false, errore: "solo da questo computer" });
 
       if (apiPath === "/api/vault" && req.method === "GET")
-        return json(res, 200, cassaforte.elenco());
+        return json(res, 200, { ...cassaforte.elenco(), provabili: CHIAVI_PROVABILI });
 
       // Valore in chiaro: lo usa solo l'ecosistema locale per costruire
       // l'ambiente dei comandi. Gli agenti non lo vedono mai.
@@ -142,6 +143,13 @@ const server = http.createServer(async (req, res) => {
           return v === null ? json(res, 404, { ok: false }) : json(res, 200, { ok: true, valore: v });
         }
         return json(res, 200, { ok: true, ambiente: cassaforte.ambiente() });
+      }
+
+      // «Questa chiave funziona?» chiesto al servizio, invece che indovinato.
+      if (apiPath === "/api/vault/prova" && req.method === "POST") {
+        const p = await leggiCorpo(req);
+        const nome = String(p.nome || "");
+        return json(res, 200, await provaChiave(nome, cassaforte.valore(nome)));
       }
 
       if (apiPath === "/api/vault" && req.method === "POST") {
