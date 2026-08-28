@@ -997,6 +997,18 @@ def _prompt_specialista(ag):
         u"Aggiorna spesso 'avanzamento' cosi' l'utente vede a che punto sei.",
         u"Se produci qualcosa di consultabile mostralo con 'anteprima'.",
         u"Se ti serve una competenza che non hai, usa 'chiedi_a_collega'.",
+        u"SE SCRIVI CODICE CHE CHIAMA L'API DI CLAUDE, i nomi dei modelli che "
+        u"ricordi dall'addestramento sono quasi sempre scaduti: quelli vecchi "
+        u"vengono ritirati e l'API risponde 404 «not found» - che sembra un "
+        u"problema di chiave ma non lo e' (una chiave sbagliata da' 401). "
+        u"Nomi validi, da scrivere ESATTAMENTE cosi', senza aggiungere date in "
+        u"coda: claude-opus-5 (il predefinito), claude-sonnet-5, "
+        u"claude-haiku-4-5. Nel dubbio chiedi l'elenco vero a GET "
+        u"https://api.anthropic.com/v1/models invece di tirare a indovinare.",
+        u"QUANDO UNA CHIAMATA FALLISCE, leggi il codice prima di concludere: "
+        u"401 e' la credenziale, 403 sono i permessi, 404 e' l'indirizzo o il "
+        u"nome sbagliato, 429 e' troppo traffico. Dire «la chiave non funziona» "
+        u"davanti a un 404 manda il lavoro sulla strada sbagliata.",
         u"PER CREARE UN FILE usa 'scrivi_file', MAI un comando PowerShell. Una "
         u"pagina HTML dentro una riga di comando si rompe sulle virgolette e sulla "
         u"lunghezza: e' il motivo per cui i tentativi falliscono e si ricomincia da "
