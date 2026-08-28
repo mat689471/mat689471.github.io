@@ -90,8 +90,25 @@ RUOLI = {
     "finance":   (u"Contabile",      "#8dbcff", "revisione",  u"costi, incassi, contabilita' dei progetti"),
     "docs":      (u"Documentatore",  "#ff7ac4", "archivio",   u"scrive documentazione, guide, riepiloghi"),
     "content":   (u"Redattore",      "#ff9dd2", "archivio",   u"testi, comunicazione, materiale per i clienti"),
+    # --- Il Negozio: una squadra fissa, come in un'azienda vera ---
+    "negozio":   (u"Responsabile Negozio", "#ffb03a", "negozio",
+                  u"guida il negozio Etsy: guarda i numeri, decide le priorita', coordina la squadra"),
+    "nicchia":   (u"Ricerca Nicchia", "#ffc76b", "negozio",
+                  u"studia domanda, concorrenza e stagionalita'; decide cosa vale la pena vendere"),
+    "prodotto":  (u"Creativo Prodotto", "#ff9f4a", "negozio",
+                  u"idea i prodotti, prepara le grafiche e li porta su Printify"),
+    "inserzioni":(u"Inserzioni e SEO", "#ffd68a", "negozio",
+                  u"titoli, tag, descrizioni e prezzi: fa trovare i prodotti dentro Etsy"),
+    "marketing": (u"Marketing", "#ff8f2e", "negozio",
+                  u"promozione fuori da Etsy: social, sponsorizzate, collaborazioni"),
+    "clienti":   (u"Cura Clienti", "#ffbe7a", "negozio",
+                  u"messaggi, recensioni, resi: tiene alta la reputazione del negozio"),
 }
-STANZE = ["sviluppo", "architettura", "laboratorio", "test", "revisione", "archivio"]
+STANZE = ["sviluppo", "architettura", "laboratorio", "test", "revisione", "archivio", "negozio"]
+
+# I ruoli che vivono stabilmente nel Negozio: non nascono e muoiono con un
+# incarico, stanno li' e lavorano quando l'Orchestratore chiede qualcosa.
+SQUADRA_NEGOZIO = ["negozio", "nicchia", "prodotto", "inserzioni", "marketing", "clienti"]
 COLORI_SU_MISURA = ["#f5b942", "#7ee787", "#d2a8ff", "#ffa657", "#79c0ff", "#ff7b72"]
 
 MAX_PASSI_AGENTE = 16
@@ -262,6 +279,24 @@ def manda_email(a, oggetto, testo):
                 "http://127.0.0.1:{}/api/account/manda".format(porta), data=corpo,
                 headers={"Content-Type": "application/json"}, method="POST")
             with urllib.request.urlopen(req, timeout=45) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            try:
+                return {"ok": False,
+                        "errore": json.loads(e.read().decode("utf-8")).get("errore", str(e))}
+            except Exception:
+                return {"ok": False, "errore": u"errore HTTP {}".format(e.code)}
+        except (urllib.error.URLError, OSError, ValueError):
+            continue
+    return {"ok": False, "errore": u"il mondo non risponde: e' acceso 'node mondo/avvia.mjs'?"}
+
+
+def stato_negozio(giorni=30):
+    """La fotografia del negozio, chiesta al server che tiene gli accessi."""
+    for porta in range(5178, 5188):
+        try:
+            url = "http://127.0.0.1:{}/api/negozio/foto?giorni={}".format(porta, giorni)
+            with urllib.request.urlopen(url, timeout=60) as r:
                 return json.loads(r.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             try:
@@ -776,6 +811,24 @@ TOOLS_SPECIALISTA = [
             "required": ["percorso"]},
     },
     {
+        "name": "stato_negozio",
+        "description": (
+            u"Come sta andando il negozio Etsy: incassato, ordini, scontrino medio, "
+            u"inserzioni attive, quali prodotti la gente guarda e quali no, piu' lo "
+            u"stato di Printify. USALO SEMPRE PRIMA di proporre qualcosa per il "
+            u"negozio: decidere una nicchia o un prezzo senza guardare i numeri e' "
+            u"tirare a indovinare. "
+            u"Attenzione a un dato: le visualizzazioni sono TOTALI dalla "
+            u"pubblicazione dell'inserzione, non del periodo - Etsy non le scompone. "
+            u"Le visite al negozio e il tasso di conversione le API non le danno "
+            u"affatto: non inventarli."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "giorni": {"type": "integer", "description": u"quanti giorni guardare (1-90, di solito 30)"},
+            }},
+    },
+    {
         "name": "crea_offerta",
         "description": (
             u"Crea l'offerta commerciale vera su Stripe e PayPal: il servizio, i "
@@ -1046,6 +1099,11 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
                 elif b.name == "leggi_file":
                     contenuto = json.dumps(leggi_file(args.get("percorso", "")),
                                            ensure_ascii=False)[:12000]
+
+                elif b.name == "stato_negozio":
+                    g = max(1, min(90, int(args.get("giorni") or 30)))
+                    m.evento(nome_ag, u"🛍 guarda come va il negozio ({} giorni)".format(g), colore)
+                    contenuto = json.dumps(stato_negozio(g), ensure_ascii=False)[:9000]
 
                 elif b.name == "crea_offerta":
                     m.evento(nome_ag, u"💳 costruisce l'offerta «{}»".format(
@@ -1582,6 +1640,24 @@ TOOLS_PERSONALE = agente.TOOLS + [
             "required": ["percorso"]},
     },
     {
+        "name": "stato_negozio",
+        "description": (
+            u"Come sta andando il negozio Etsy: incassato, ordini, scontrino medio, "
+            u"inserzioni attive, quali prodotti la gente guarda e quali no, piu' lo "
+            u"stato di Printify. USALO SEMPRE PRIMA di proporre qualcosa per il "
+            u"negozio: decidere una nicchia o un prezzo senza guardare i numeri e' "
+            u"tirare a indovinare. "
+            u"Attenzione a un dato: le visualizzazioni sono TOTALI dalla "
+            u"pubblicazione dell'inserzione, non del periodo - Etsy non le scompone. "
+            u"Le visite al negozio e il tasso di conversione le API non le danno "
+            u"affatto: non inventarli."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "giorni": {"type": "integer", "description": u"quanti giorni guardare (1-90, di solito 30)"},
+            }},
+    },
+    {
         "name": "crea_offerta",
         "description": (
             u"Crea l'offerta commerciale vera su Stripe e PayPal: il servizio, i "
@@ -1758,6 +1834,11 @@ def gestisci_messaggio_personale(client, memoria, testo_utente, storico):
                 elif b.name == "leggi_file":
                     contenuto = json.dumps(leggi_file(args.get("percorso", "")),
                                            ensure_ascii=False)[:12000]
+
+                elif b.name == "stato_negozio":
+                    g = max(1, min(90, int(args.get("giorni") or 30)))
+                    m.evento(u"Il tuo Agente", u"🛍 guarda come va il negozio ({} giorni)".format(g), ag["color"])
+                    contenuto = json.dumps(stato_negozio(g), ensure_ascii=False)[:9000]
 
                 elif b.name == "crea_offerta":
                     m.evento(u"Il tuo Agente", u"💳 costruisce l'offerta «{}»".format(

@@ -24,6 +24,7 @@ mondo/bridge/ruflo-bridge.mjs
 mondo/gestione.html
 mondo/index.html
 mondo/ledger.mjs
+mondo/negozio.mjs
 mondo/pagamenti.mjs
 mondo/state.example.json
 mondo/strumenti.mjs

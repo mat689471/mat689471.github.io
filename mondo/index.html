@@ -159,6 +159,48 @@
   .kv b{color:var(--muted);font-weight:500}
   .note{font-size:12px;color:var(--faint);line-height:1.5;border-top:1px solid var(--border-soft);padding-top:10px}
 
+  /* ---- cruscotto del Negozio ---- */
+  .neg-vuoto{padding:44px 26px;text-align:center;color:var(--muted);line-height:1.75;font-size:14px}
+  .neg-vuoto b{color:var(--ink)}
+  .neg-vuoto a{color:var(--gold)}
+  .neg-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));
+             gap:1px;background:var(--border-soft);border-bottom:1px solid var(--border-soft)}
+  .neg-t{background:var(--panel-2);padding:16px 18px;display:flex;flex-direction:column;gap:4px}
+  .neg-t .n{font-family:"Chakra Petch",monospace;font-size:26px;font-weight:700;
+            letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1;color:var(--ink)}
+  .neg-t .e{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+  .neg-t .s{font-size:11.5px;color:var(--muted)}
+  .neg-sez{padding:18px 22px;border-bottom:1px solid var(--border-soft)}
+  .neg-sez h4{margin:0 0 4px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+              color:var(--faint);font-weight:600}
+  .neg-sez .sub{font-size:12px;color:var(--faint);margin-bottom:14px}
+  /* Barre: una sola serie, quindi nessuna legenda. Il controllo della banda di
+     luminosita' vale per le tavolozze categoriche; qui conta il contrasto sulla
+     superficie, verificato. */
+  .barre{display:flex;align-items:flex-end;gap:2px;height:120px;position:relative}
+  .barra{flex:1;min-width:2px;background:#e0902a;border-radius:3px 3px 0 0;
+         position:relative;cursor:default;transition:background .12s}
+  .barra:hover{background:#ffb03a}
+  .barra.zero{background:var(--border);border-radius:2px}
+  .barre-x{display:flex;justify-content:space-between;font-size:10.5px;color:var(--faint);
+           margin-top:7px;font-family:"JetBrains Mono",monospace}
+  .neg-tip{position:absolute;pointer-events:none;background:var(--panel-2);
+           border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:12px;
+           color:var(--ink);white-space:nowrap;transform:translate(-50%,-100%);
+           opacity:0;transition:opacity .1s;z-index:5;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  .neg-tip.on{opacity:1}
+  .neg-tip .v{color:#ffb03a;font-weight:600}
+  .neg-liste{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border-soft)}
+  @media(max-width:760px){.neg-liste{grid-template-columns:1fr}}
+  .neg-lista{background:var(--panel-2);padding:18px 22px}
+  .neg-riga{display:flex;gap:12px;align-items:baseline;padding:8px 0;
+            border-bottom:1px solid var(--border-soft);font-size:13px}
+  .neg-riga:last-child{border-bottom:0}
+  .neg-riga .t{flex:1;min-width:0;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .neg-riga .d{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--faint);
+               flex:0 0 auto;font-variant-numeric:tabular-nums}
+  .neg-guai{padding:12px 22px;font-size:12.5px;color:#ff9f6b;line-height:1.6;
+            border-bottom:1px solid var(--border-soft)}
   .vet-nota{padding:12px 18px;font-size:13px;color:var(--muted);line-height:1.6;border-bottom:1px solid var(--border-soft)}
   .vet-nota:empty{display:none}
   .vet-palco{background:#080d18;min-height:340px;display:flex;align-items:center;justify-content:center}
@@ -222,11 +264,12 @@
       <button class="btn ghost" id="btnSessioni">📚 Lavori <span id="badgeSess" style="display:none"></span></button>
       <button class="btn ghost" id="btnNuova">✚ Nuovo</button>
       <a class="btn ghost" href="./gestione.html">🏛️ Quartier Generale</a>
+      <button class="btn ghost" id="btnNegozio" title="Come va il negozio Etsy: incassi, ordini, inserzioni">🛍 Negozio</button>
       <button class="btn ghost" id="btnVetrina" title="I lavori finiti: guardali davvero">🖼 Vetrina</button>
       <button class="btn ghost" id="btnReport">📋 Resoconto</button>
       <button class="btn ghost" id="btnFull" title="Interruttore volontario: fa passare i comandi pericolosi senza chiedere, solo per questa sessione">🔓 Autorizzazione</button>
       <button class="btn ghost" id="btnPosta" title="Interruttore volontario: fa partire le mail senza chiedere conferma ogni volta, solo per questa sessione">✉️ Mail libere</button>
-      <div class="seg" role="group" aria-label="Velocità">
+      <div class="seg" id="segVelocita" role="group" aria-label="Velocità">
         <button data-speed="0.5">0.5×</button><button data-speed="1" aria-pressed="true">1×</button><button data-speed="2">2×</button>
       </div>
       <button class="btn ghost" id="pause">⏸</button>
@@ -334,6 +377,25 @@
   </div>
 </div>
 
+<!-- Il Negozio: come sta andando l'attivita', coi numeri veri di Etsy -->
+<div class="modal" id="mNegozio">
+  <div class="card" style="width:min(1080px,96vw)">
+    <div class="top">
+      <div><h3 id="negNome">Il Negozio</h3><div class="role" id="negQuando"></div></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="seg" id="negPeriodo">
+          <button data-giorni="7">7 g</button>
+          <button data-giorni="30" aria-pressed="true">30 g</button>
+          <button data-giorni="90">90 g</button>
+        </div>
+        <button class="btn ghost small" id="negAggiorna" title="Richiedi i dati a Etsy adesso">↻</button>
+        <button class="close" id="negX">✕</button>
+      </div>
+    </div>
+    <div class="content" id="negCorpo"></div>
+  </div>
+</div>
+
 <!-- Vetrina: il lavoro finito, guardato per davvero e non solo raccontato -->
 <div class="modal" id="mVetrina">
   <div class="card" style="width:min(1100px,96vw)">
@@ -403,7 +465,7 @@ window.ECO_CONFIG = {
   const TW=64, TH=32;
 
   // ===================== MAPPA =====================
-  const GW=24, GH=17;
+  const GW=24, GH=27;   // il piano del Negozio sta sotto
   const ROOMS=[
     {id:"sviluppo",     name:"Studio Sviluppo",   color:"#35d0d6", x:1,  y:1,  w:6,h:6},
     {id:"architettura", name:"Sala Architettura", color:"#9d7bff", x:9,  y:1,  w:6,h:6},
@@ -411,10 +473,28 @@ window.ECO_CONFIG = {
     {id:"test",         name:"Sala Test",         color:"#4ce0a5", x:1,  y:10, w:6,h:6},
     {id:"revisione",    name:"Sala Review",       color:"#6aa8ff", x:9,  y:10, w:6,h:6},
     {id:"archivio",     name:"Archivio Docs",     color:"#ff7ac4", x:17, y:10, w:6,h:6},
+    // Il Negozio e' un piano intero, non una stanza: ci lavora una squadra
+    // fissa e ci si entra per vedere come va l'attivita'.
+    {id:"negozio",      name:"Il Negozio",        color:"#ffb03a", x:3,  y:19, w:18,h:6,
+     posti:6, cliccabile:true},
   ];
   const roomById=Object.fromEntries(ROOMS.map(r=>[r.id,r]));
   // Tre postazioni per stanza: piu' agenti dello stesso reparto ci lavorano insieme.
   const POSTI=[{dx:1.35,dy:1.7},{dx:4.05,dy:1.7},{dx:1.35,dy:4.15}];
+  /**
+   * Le postazioni di una stanza. Quelle normali ne hanno tre in posizione
+   * fissa; una stanza che ne dichiara di piu' (il Negozio) se le fa disporre
+   * lungo la sua larghezza, cosi' la squadra non si accavalla.
+   */
+  function postiDi(r){
+    if(!r.posti || r.posti<=POSTI.length) return POSTI;
+    const out=[], perFila=Math.ceil(r.posti/2), passo=(r.w-2.6)/Math.max(1,perFila-1);
+    for(let i=0;i<r.posti;i++){
+      const fila=Math.floor(i/perFila), col=i%perFila;
+      out.push({dx:1.3+col*passo, dy:1.7+fila*2.45});
+    }
+    return out;
+  }
   const DAIS={gx:11.5, gy:8};          // pedana dell'Orchestratore
   const TU={gx:11.5, gy:5.6};          // dove stai tu, nella Sala Comando
   const PLAZA={x:8.5,y:6.4,w:6,h:3.6}; // pavimento della Sala Comando
@@ -427,7 +507,8 @@ window.ECO_CONFIG = {
   const rnd=(a,b)=>a+Math.random()*(b-a);
   const clock=()=>new Date().toTimeString().slice(0,8);
   const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  const deskOf=(r,slot=0)=>{const p=POSTI[slot%POSTI.length];return {gx:r.x+p.dx, gy:r.y+p.dy};};
+  const deskOf=(r,slot=0)=>{const P=postiDi(r);const p=P[slot%P.length];
+    return {gx:r.x+p.dx, gy:r.y+p.dy};};
   const gate=r=>({gx:r.x+r.w/2-0.5, gy:8});
   // Da qui entrano i nuovi agenti: compaiono nella Sala Comando e poi
   // raggiungono a piedi la loro stanza.
@@ -456,8 +537,9 @@ window.ECO_CONFIG = {
   /** Prima postazione libera nella stanza (fino a tre agenti per stanza). */
   function postoLibero(room){
     const usati=new Set([...agents.values()].filter(w=>w.room===room).map(w=>w.slot));
-    for(let i=0;i<POSTI.length;i++) if(!usati.has(i)) return i;
-    return agents.size%POSTI.length;
+    const n=postiDi(room).length;
+    for(let i=0;i<n;i++) if(!usati.has(i)) return i;
+    return agents.size%n;
   }
 
   function ensureAgent(a){
@@ -747,11 +829,33 @@ window.ECO_CONFIG = {
     ctx.fillStyle=g;ctx.beginPath();ctx.arc(dp.x,dp.y-10*cam.zoom,95*cam.zoom,0,7);ctx.fill();
   }
 
+  /** Quale stanza sta sotto il puntatore: serve per entrarci con un clic. */
+  function stanzaSotto(mx,my){
+    for(const r of ROOMS){
+      const a=toScreen(iso(r.x,r.y)), b=toScreen(iso(r.x+r.w,r.y)),
+            c=toScreen(iso(r.x+r.w,r.y+r.h)), d=toScreen(iso(r.x,r.y+r.h));
+      if(dentroQuadrilatero(mx,my,a,b,c,d)) return r;
+    }
+    return null;
+  }
+  /** Un punto dentro un quadrilatero convesso: stesso segno per ogni lato. */
+  function dentroQuadrilatero(px,py,...v){
+    let segno=0;
+    for(let i=0;i<v.length;i++){
+      const a=v[i], b=v[(i+1)%v.length];
+      const cr=(b.x-a.x)*(py-a.y)-(b.y-a.y)*(px-a.x);
+      if(cr===0) continue;
+      const s=cr>0?1:-1;
+      if(segno===0) segno=s; else if(s!==segno) return false;
+    }
+    return true;
+  }
+
   function furniture(){
     const out=[];
     for(const r of ROOMS){
       // una postazione completa (tappeto, scrivania, monitor, sedia) per ogni posto
-      POSTI.forEach((p,slot)=>{
+      postiDi(r).forEach((p,slot)=>{
         const px=r.x+p.dx, py=r.y+p.dy;
         out.push({d:px+py-1.2,fn:()=>{
           const a=P(px-1.05,py-1.45),b=P(px+1.25,py-1.45),c=P(px+1.25,py+0.45),d=P(px-1.05,py+0.45);
@@ -978,6 +1082,158 @@ window.ECO_CONFIG = {
     prevEl.innerHTML='<div class="prev-head" style="color:'+(preview.color||"#e9edf8")+'">'+esc(preview.title)+'</div>'+
                      '<div class="prev-body">'+esc(preview.body)+'</div>';
   }
+  // ===================== IL NEGOZIO =====================
+  // Quanto sta rendendo l'attivita', coi numeri veri di Etsy e Printify.
+  const mNeg=document.getElementById("mNegozio"), negCorpo=document.getElementById("negCorpo");
+  let negGiorni=30;
+
+  const eur=(n,val)=>new Intl.NumberFormat("it-IT",{style:"currency",currency:val||"EUR"}).format(n||0);
+  const num=n=>new Intl.NumberFormat("it-IT").format(n||0);
+
+  function tile(n,e,s){
+    return '<div class="neg-t"><span class="n">'+esc(n)+'</span>'
+         + '<span class="e">'+esc(e)+'</span>'
+         + (s?'<span class="s">'+esc(s)+'</span>':'')+'</div>';
+  }
+
+  async function apriNegozio(){
+    mNeg.classList.add("open");
+    negCorpo.innerHTML='<div class="neg-vuoto">Chiedo i numeri a Etsy…</div>';
+    let d;
+    try{ d=await (await fetch("/api/negozio")).json(); }
+    catch{ negCorpo.innerHTML='<div class="neg-vuoto">L\'ecosistema non risponde.</div>'; return; }
+
+    if(!d.etsy.collegato){
+      negCorpo.innerHTML='<div class="neg-vuoto">'
+        + '<b>Il negozio non è ancora collegato.</b><br><br>'
+        + 'Vai nel <a href="./gestione.html" target="_blank" rel="noopener">Quartier Generale</a>'
+        + ' → scheda <b>Strumenti agenti</b> → <b>Negozio</b>, e collega Etsy.<br>'
+        + 'Da lì attacchi anche Printify per la stampa su richiesta.<br><br>'
+        + '<span style="color:var(--faint);font-size:13px">Finché non è collegato la squadra del '
+        + 'Negozio lavora comunque, ma alla cieca: senza numeri decide a intuito.</span></div>';
+      document.getElementById("negNome").textContent="Il Negozio";
+      document.getElementById("negQuando").textContent="non collegato";
+      return;
+    }
+
+    let foto;
+    try{
+      const r=await (await fetch("/api/negozio/foto?giorni="+negGiorni)).json();
+      if(r.ok===false) throw new Error(r.errore);
+      foto=r.foto;
+    }catch(e){
+      negCorpo.innerHTML='<div class="neg-vuoto">Non riesco a leggere i dati: '+esc(e.message)+'</div>';
+      return;
+    }
+    disegnaNegozio(foto);
+  }
+
+  function disegnaNegozio(foto){
+    const e=foto.etsy, pf=foto.printify;
+    document.getElementById("negNome").textContent = e ? e.negozio : "Il Negozio";
+    document.getElementById("negQuando").textContent =
+      "aggiornato alle " + new Date(foto.quando).toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})
+      + (e ? " · ultimi "+e.giorni+" giorni" : "");
+
+    let html="";
+    if(foto.problemi.length)
+      html += '<div class="neg-guai">⚠ '+foto.problemi.map(esc).join("<br>⚠ ")+'</div>';
+
+    if(e){
+      html += '<div class="neg-tiles">'
+        + tile(eur(e.incasso,e.valuta), "incassato", e.giorni+" giorni")
+        + tile(num(e.ordini), "ordini", e.pezzi+" pezzi venduti")
+        + tile(eur(e.scontrinoMedio,e.valuta), "scontrino medio")
+        + tile(num(e.inserzioniAttive), "inserzioni attive")
+        + tile(num(e.viste), "visualizzazioni", "totali, non del periodo")
+        + tile(num(e.preferiti), "preferiti")
+        + '</div>';
+
+      // una serie sola: niente legenda, e il valore piu' alto etichettato
+      const max=Math.max(...e.serie.map(g=>g.incasso), 0.01);
+      html += '<div class="neg-sez"><h4>Incasso giorno per giorno</h4>'
+        + '<div class="sub">Passa sopra una barra per il dettaglio</div>'
+        + '<div class="barre" id="barre">'
+        + e.serie.map(g=>{
+            const alt=Math.max(2, Math.round(g.incasso/max*118));
+            const et=new Date(g.giorno).toLocaleDateString("it-IT",{day:"2-digit",month:"short"});
+            return '<div class="barra'+(g.incasso?"":" zero")+'" style="height:'
+              + (g.incasso?alt:2)+'px" tabindex="0" role="img"'
+              + ' aria-label="'+esc(et+": "+eur(g.incasso,e.valuta)+", "+g.ordini
+                  +(g.ordini===1?" ordine":" ordini"))+'"'
+              + ' data-g="'+esc(et)+'" data-v="'+esc(eur(g.incasso,e.valuta))+'"'
+              + ' data-o="'+g.ordini+'"></div>';
+          }).join("")
+        + '<div class="neg-tip" id="negTip"></div></div>'
+        + '<div class="barre-x"><span>'+esc(new Date(e.serie[0].giorno).toLocaleDateString("it-IT",{day:"2-digit",month:"short"}))+'</span>'
+        + '<span>oggi</span></div></div>';
+
+      html += '<div class="neg-liste">'
+        + '<div class="neg-lista"><h4 style="margin:0 0 12px;font-size:12px;letter-spacing:.14em;'
+        + 'text-transform:uppercase;color:var(--faint)">Più guardati</h4>'
+        + (e.migliori.length ? e.migliori.map(l=>
+            '<div class="neg-riga"><span class="t" title="'+esc(l.titolo)+'">'+esc(l.titolo)+'</span>'
+            + '<span class="d">'+num(l.viste)+' viste · ♥ '+num(l.preferiti)+'</span></div>').join("")
+          : '<div class="neg-riga"><span class="t">nessuna inserzione attiva</span></div>')
+        + '</div>'
+        + '<div class="neg-lista"><h4 style="margin:0 0 12px;font-size:12px;letter-spacing:.14em;'
+        + 'text-transform:uppercase;color:var(--faint)">Ferme — meno di 10 viste</h4>'
+        + (e.ferme.length ? e.ferme.map(l=>
+            '<div class="neg-riga"><span class="t" title="'+esc(l.titolo)+'">'+esc(l.titolo)+'</span>'
+            + '<span class="d">'+num(l.viste)+' viste</span></div>').join("")
+          : '<div class="neg-riga"><span class="t" style="color:var(--good)">nessuna: le guardano tutte</span></div>')
+        + '</div></div>';
+    }
+
+    if(pf){
+      html += '<div class="neg-sez" style="border-bottom:0"><h4>Printify · stampa su richiesta</h4>'
+        + '<div class="sub">'+esc(pf.negozio||"")+(pf.canale?" · "+esc(pf.canale):"")+'</div>'
+        + '<div style="display:flex;gap:26px;flex-wrap:wrap;font-size:13px;color:var(--muted)">'
+        + '<span><b style="color:var(--ink)">'+num(pf.prodotti)+'</b> prodotti</span>'
+        + '<span><b style="color:var(--ink)">'+num(pf.ordini)+'</b> ordini</span>'
+        + '<span><b style="color:'+(pf.inLavorazione?"#ffb03a":"var(--ink)")+'">'
+        + num(pf.inLavorazione)+'</b> in lavorazione</span>'
+        + '</div></div>';
+    }
+
+    negCorpo.innerHTML=html;
+
+    // il dettaglio della barra sotto il puntatore
+    const barre=document.getElementById("barre"), tip=document.getElementById("negTip");
+    if(barre && tip){
+      const mostra=b=>{
+        tip.innerHTML=esc(b.dataset.g)+' · <span class="v">'+esc(b.dataset.v)+'</span>'
+          + (Number(b.dataset.o)?' · '+b.dataset.o+(b.dataset.o==="1"?' ordine':' ordini'):'');
+        tip.classList.add("on");
+        tip.style.left=(b.offsetLeft+b.offsetWidth/2)+"px";
+        tip.style.top=(b.offsetTop-8)+"px";
+      };
+      for(const b of barre.querySelectorAll(".barra")){
+        b.addEventListener("mouseenter",()=>mostra(b));
+        b.addEventListener("focus",()=>mostra(b));
+      }
+      barre.addEventListener("mouseleave",()=>tip.classList.remove("on"));
+    }
+  }
+
+  document.getElementById("btnNegozio").onclick=apriNegozio;
+  document.getElementById("negX").onclick=()=>mNeg.classList.remove("open");
+  document.getElementById("negAggiorna").onclick=async()=>{
+    negCorpo.innerHTML='<div class="neg-vuoto">Richiedo i dati a Etsy…</div>';
+    try{
+      const r=await (await fetch("/api/negozio/foto?giorni="+negGiorni+"&forza=1")).json();
+      if(r.ok===false) throw new Error(r.errore);
+      disegnaNegozio(r.foto);
+    }catch(e){ negCorpo.innerHTML='<div class="neg-vuoto">'+esc(e.message)+'</div>'; }
+  };
+  for(const b of document.querySelectorAll("#negPeriodo button")){
+    b.onclick=()=>{
+      document.querySelectorAll("#negPeriodo button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
+      negGiorni=Number(b.dataset.giorni);
+      apriNegozio();
+    };
+  }
+
   // ===================== VETRINA =====================
   // Il lavoro finito va guardato, non raccontato: una pagina si sfoglia, un
   // video parte, un audio si ascolta. Il tipo lo decide l'estensione del file,
@@ -1380,8 +1636,8 @@ window.ECO_CONFIG = {
     if(!vRAF) animViewer();
   }
   document.getElementById("mClose").onclick=()=>mAgent.classList.remove("open");
-  for(const m of [mAgent,mReport,mFull,mSess,mPosta]) m.addEventListener("click",e=>{if(e.target===m)m.classList.remove("open");});
-  window.addEventListener("keydown",e=>{if(e.key==="Escape")for(const m of [mAgent,mReport,mFull,mSess,mPosta])m.classList.remove("open");});
+  for(const m of [mAgent,mReport,mFull,mSess,mPosta,mNeg]) m.addEventListener("click",e=>{if(e.target===m)m.classList.remove("open");});
+  window.addEventListener("keydown",e=>{if(e.key==="Escape")for(const m of [mAgent,mReport,mFull,mSess,mPosta,mNeg])m.classList.remove("open");});
   window.addEventListener("resize",()=>{if(mAgent.classList.contains("open"))resizeViewer();});
 
   // ===================== INPUT SCENA =====================
@@ -1392,10 +1648,19 @@ window.ECO_CONFIG = {
     const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
     let hit=null,best=1e9;
     for(const a of allDrawn()){const s=toScreen(iso(a.gx,a.gy));const gy=a.kind==="boss"?s.y-10*cam.zoom:s.y;const d=Math.hypot(mx-s.x,my-(gy-22*cam.zoom));if(d<26*cam.zoom&&d<best){best=d;hit=a.id;}}
-    if(hit) openAgent(hit);
+    if(hit){ openAgent(hit); return; }
+    // nessun agente sotto il puntatore: se e' una stanza che si apre, si entra
+    const st=stanzaSotto(mx,my);
+    if(st && st.cliccabile && st.id==="negozio") apriNegozio();
   }});
   cv.addEventListener("wheel",e=>{e.preventDefault();cam.zoom=Math.max(.5,Math.min(2.4,cam.zoom*(e.deltaY<0?1.12:.89)));},{passive:false});
-  document.querySelectorAll(".seg button").forEach(b=>{b.onclick=()=>{document.querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");speed=parseFloat(b.dataset.speed);};});
+  // Solo i pulsanti della velocita': prima il selettore prendeva OGNI '.seg
+  // button' della pagina e sovrascriveva i gestori degli altri gruppi - il
+  // periodo del Negozio smetteva di rispondere senza dare segno di se'.
+  const segVel=document.getElementById("segVelocita");
+  segVel.querySelectorAll("button").forEach(b=>{b.onclick=()=>{
+    segVel.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed","false"));
+    b.setAttribute("aria-pressed","true"); speed=parseFloat(b.dataset.speed);};});
   const pauseBtn=document.getElementById("pause");
   pauseBtn.onclick=()=>{paused=!paused;pauseBtn.textContent=paused?"▶":"⏸";};
 

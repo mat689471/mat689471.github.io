@@ -21,6 +21,7 @@ import { Registro } from "./ledger.mjs";
 import { Strumenti } from "./strumenti.mjs";
 import { Account } from "./account.mjs";
 import { Pagamenti } from "./pagamenti.mjs";
+import { Negozio } from "./negozio.mjs";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { exec } from "node:child_process";
@@ -58,6 +59,7 @@ const strumenti = new Strumenti(path.join(ROOT, ".."));
 const account = new Account(DATI);
 // La funzione, non i valori: le chiavi restano in Cassaforte fino alla chiamata.
 const pagamenti = new Pagamenti((nome) => cassaforte.valore(nome));
+const negozio = new Negozio(DATI, (nome) => cassaforte.valore(nome));
 
 function json(res, code, obj) { res.writeHead(code, JSONH); res.end(JSON.stringify(obj)); }
 function leggiCorpo(req) {
@@ -151,6 +153,48 @@ const server = http.createServer(async (req, res) => {
             case "sblocca":   return json(res, 200, await cassaforte.sblocca(p.passphrase));
             case "chiudi":    cassaforte.chiudi(); return json(res, 200, { ok: true });
             case "passphrase":return json(res, 200, await cassaforte.impostaPassphrase(p.passphrase || null));
+            default:          return json(res, 400, { ok: false, errore: "azione sconosciuta" });
+          }
+        } catch (e) { return json(res, 400, { ok: false, errore: e.message }); }
+      }
+      return json(res, 405, { ok: false });
+    }
+
+    // ---- NEGOZIO: Etsy e stampa su richiesta ------------------------------
+    if (apiPath === "/negozio/entra") {
+      if (!daLocale(req)) return json(res, 403, { ok: false, errore: "solo da questo computer" });
+      try {
+        res.writeHead(302, { Location: negozio.urlAccesso() });
+        return res.end();
+      } catch (e) { return paginaEsito(res, false, e.message); }
+    }
+    if (apiPath === "/negozio/callback") {
+      const q = new URL(req.url, "http://x").searchParams;
+      if (q.get("error")) return paginaEsito(res, false, spiegaRifiuto(q));
+      try {
+        const r = await negozio.completa(q.get("code"), q.get("state"));
+        console.log(`\n[mondo] negozio Etsy collegato: ${r.negozio}`);
+        return paginaEsito(res, true, "Negozio «" + r.negozio + "» collegato");
+      } catch (e) { return paginaEsito(res, false, e.message); }
+    }
+    if (apiPath === "/api/negozio" || apiPath === "/api/negozio/foto") {
+      if (!daLocale(req)) return json(res, 403, { ok: false, errore: "solo da questo computer" });
+      if (apiPath === "/api/negozio/foto" && req.method === "GET") {
+        const q = new URL(req.url, "http://x").searchParams;
+        try {
+          return json(res, 200, { ok: true, foto: await negozio.fotografia({
+            giorni: Math.min(90, Math.max(1, Number(q.get("giorni")) || 30)),
+            forza: q.get("forza") === "1",
+          }) });
+        } catch (e) { return json(res, 400, { ok: false, errore: e.message }); }
+      }
+      if (req.method === "GET") return json(res, 200, negozio.vista());
+      if (req.method === "POST") {
+        const p = await leggiCorpo(req);
+        try {
+          switch (p.azione) {
+            case "configura": return json(res, 200, await negozio.configura(p.keystring, p.secret));
+            case "esci":      return json(res, 200, await negozio.esci());
             default:          return json(res, 400, { ok: false, errore: "azione sconosciuta" });
           }
         } catch (e) { return json(res, 400, { ok: false, errore: e.message }); }
@@ -337,6 +381,7 @@ function ascolta(port) {
     // L'indirizzo di ritorno deve combaciare con quello registrato sulla
     // console del fornitore, e contiene la porta: si sa solo adesso.
     await account.init(`http://localhost:${port}/oauth/callback`);
+    await negozio.init(`http://localhost:${port}/negozio/callback`);
     console.log("\n===============================================");
     console.log("  L'Ecosistema è in funzione!");
     console.log("  Mondo:          " + url);

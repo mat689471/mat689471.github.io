@@ -365,6 +365,28 @@
   <section id="t-strumenti" class="hide">
 
     <div class="card">
+      <h2>Negozio · Etsy e stampa su richiesta <span class="chip" id="negStato">—</span></h2>
+      <div class="in">
+        <div id="negBox"></div>
+        <div id="msgNeg" class="nota" style="margin-top:12px"></div>
+        <details class="acc-setup" id="negSetup">
+          <summary>⚙️ Preparazione Etsy — da fare una volta sola</summary>
+          <p class="nota" style="margin:10px 0">
+            Etsy non dà i dati del tuo negozio a un programma che non conosce. Registra
+            questa app una volta sola sul loro sito e incolla qui il codice che ti danno.
+            È gratis.
+          </p>
+          <ol class="acc-passi" id="negPassi"></ol>
+          <div class="row">
+            <div style="flex:2"><label for="etsyKey">Keystring</label>
+              <input id="etsyKey" class="mono" placeholder="il codice dell'app Etsy"></div>
+            <button class="btn" id="btnEtsyKey">Salva</button>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Posta · account collegato <span class="chip" id="accStato">—</span></h2>
       <div class="in">
         <div id="accBox"></div>
@@ -493,9 +515,85 @@
       document.querySelectorAll('.tabs button').forEach(x=>x.setAttribute("aria-selected", String(x===b)));
       for(const s of ["chiavi","incassi","progetti","strumenti"]) $("#t-"+s).classList.toggle("hide", s!==b.dataset.tab);
       if(b.dataset.tab==="progetti") disegnaGrafico();
-      if(b.dataset.tab==="strumenti"){ caricaStrumenti(); caricaAccount(); }
+      if(b.dataset.tab==="strumenti"){ caricaStrumenti(); caricaAccount(); caricaNegozio(); }
     };
   });
+
+  // ---------- NEGOZIO: Etsy e Printify ----------
+  async function caricaNegozio(){
+    let d;
+    try{ d = await api("/api/negozio"); }
+    catch{ $("#negBox").innerHTML='<p class="nota">Ecosistema non avviato.</p>'; return; }
+
+    const box=$("#negBox"); box.replaceChildren();
+    const st=$("#negStato");
+    st.textContent = d.etsy.collegato ? "collegato" : (d.printify.collegato ? "solo Printify" : "nessuno");
+    st.className = "chip " + (d.etsy.collegato ? "attivo" : "");
+
+    if(d.etsy.collegato){
+      const riga=document.createElement("div"); riga.className="acc-attivo";
+      const t=document.createElement("div"); t.style.flex="1";
+      const m=document.createElement("div"); m.className="mail"; m.textContent=d.etsy.negozio.nome;
+      const c=document.createElement("div"); c.className="chi";
+      c.textContent="Etsy · negozio "+d.etsy.negozio.id;
+      t.append(m,c);
+      const esci=document.createElement("button");
+      esci.className="btn ghost"; esci.textContent="Scollega";
+      esci.onclick=async()=>{ await post("/api/negozio",{azione:"esci"});
+        msg("#msgNeg","Negozio scollegato."); caricaNegozio(); };
+      riga.append(t,esci); box.appendChild(riga);
+    } else {
+      const riga=document.createElement("div"); riga.className="acc-riga";
+      const b=document.createElement(d.etsy.configurato?"a":"button");
+      b.className="acc-btn"+(d.etsy.configurato?"":" spento");
+      if(d.etsy.configurato) b.href="/negozio/entra"; else { b.disabled=true; b.title="Prima la preparazione qui sotto"; }
+      const p=document.createElement("span"); p.className="pallino";
+      p.style.background="#f1641e"; p.textContent="E";
+      const t=document.createElement("span"); t.textContent="Collega il negozio Etsy";
+      b.append(p,t); riga.appendChild(b);
+      box.appendChild(riga);
+      const n=document.createElement("p"); n.className="nota";
+      n.textContent = d.etsy.configurato
+        ? "Ti porta su Etsy: la password la scrivi a loro, qui torna solo il permesso di leggere ordini e inserzioni."
+        : "Il pulsante si accende dopo la preparazione qui sotto.";
+      box.appendChild(n);
+    }
+
+    // Printify: basta un token in Cassaforte, niente accesso da fare
+    const pf=document.createElement("p"); pf.className="nota"; pf.style.marginTop="14px";
+    pf.innerHTML = d.printify.collegato
+      ? '✓ <b>Printify collegato</b> — stampa su richiesta attiva.'
+      : 'Printify non è collegato: metti <b>PRINTIFY_API_TOKEN</b> in Cassaforte '
+        + '(lo generi su printify.com → Account → Connections). Non serve nessun accesso.';
+    box.appendChild(pf);
+
+    const pass=$("#negPassi"); pass.replaceChildren();
+    for(const [testo,link,codice] of [
+      ["Apri: ", d.etsy.console, ""],
+      ["Registra una nuova app (Create a New App)", null, ""],
+      ["Come indirizzo di ritorno (callback) incolla: ", null, d.redirect],
+      ["Copia qui sotto la Keystring che ti danno.", null, ""],
+    ]){
+      const li=document.createElement("li");
+      li.append(document.createTextNode(testo));
+      if(link){ const a=document.createElement("a"); a.href=link; a.target="_blank";
+                a.rel="noopener"; a.textContent=link; li.appendChild(a); }
+      if(codice){ const c=document.createElement("code"); c.textContent=codice; li.appendChild(c); }
+      pass.appendChild(li);
+    }
+  }
+
+  $("#btnEtsyKey").onclick = async ()=>{
+    const k=$("#etsyKey").value.trim();
+    if(!k) return msg("#msgNeg","Serve la Keystring.","#ff9f6b");
+    try{
+      const r=await post("/api/negozio",{azione:"configura",keystring:k});
+      if(r.ok===false) throw new Error(r.errore||"non riuscito");
+      $("#etsyKey").value="";
+      msg("#msgNeg","Etsy pronto: adesso il pulsante «Collega il negozio Etsy» funziona.","#4ce0a5");
+      caricaNegozio();
+    }catch(e){ msg("#msgNeg","Non riuscito: "+e.message,"#ff9f6b"); }
+  };
 
   // ---------- POSTA: accedi con Google / Outlook ----------
   async function caricaAccount(){

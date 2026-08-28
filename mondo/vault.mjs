@@ -241,6 +241,7 @@ export const CATALOGO = [
   { id: "paypal_link", etichetta: "PayPal · link di incasso",  nome: "PAYPAL_LINK",            tipo: "pagamenti", prefissi: ["https://paypal.me", "https://www.paypal.me"], dove: "paypal.com/paypalme/my/grab" },
   { id: "paypal_id",   etichetta: "PayPal · client ID",        nome: "PAYPAL_CLIENT_ID",       tipo: "pagamenti", prefissi: [],                  dove: "PayPal Developer → App" },
   { id: "paypal_sec",  etichetta: "PayPal · client secret",    nome: "PAYPAL_CLIENT_SECRET",   tipo: "pagamenti", prefissi: ["EK-"],             dove: "PayPal Developer → App" },
+  { id: "printify",    etichetta: "Printify · stampa su richiesta", nome: "PRINTIFY_API_TOKEN", tipo: "api", prefissi: [], dove: "printify.com → Account → Connections → Generate token" },
   { id: "openai",      etichetta: "OpenAI",                    nome: "OPENAI_API_KEY",         tipo: "api",       prefissi: ["sk-proj-", "sk-"], dove: "platform.openai.com → API keys" },
   { id: "anthropic",   etichetta: "Anthropic (Claude)",        nome: "ANTHROPIC_API_KEY",      tipo: "api",       prefissi: ["sk-ant-"],         dove: "console.anthropic.com → API keys" },
   { id: "elevenlabs",  etichetta: "ElevenLabs · voce",         nome: "ELEVENLABS_API_KEY",     tipo: "api",       prefissi: ["sk_"],             dove: "elevenlabs.io → Profile → API key" },

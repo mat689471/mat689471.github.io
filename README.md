@@ -148,6 +148,40 @@ Il limite è di 20.000 caratteri — circa dieci pagine. Prima erano 2.000, e il
 taglio avveniva **in silenzio**: la richiesta partiva monca senza che niente lo
 dicesse.
 
+## Il Negozio
+
+Una stanza a sé nel mondo, in basso: un piano intero con una squadra fissa di sei
+ruoli — **Responsabile**, **Ricerca Nicchia**, **Creativo Prodotto**, **Inserzioni
+e SEO**, **Marketing**, **Cura Clienti**. Non nascono e muoiono con un incarico:
+stanno lì, e lavorano quando l'Orchestratore chiede qualcosa.
+
+**Cliccando dentro la stanza** (o dal pulsante 🛍 Negozio) si apre il cruscotto:
+incassato, ordini, scontrino medio, inserzioni attive, l'incasso giorno per
+giorno, quali prodotti la gente guarda e quali sono fermi, più lo stato di
+Printify.
+
+### Collegare Etsy
+
+Quartier Generale → **Strumenti agenti** → **Negozio**. Serve registrare un'app
+sul sito di Etsy (gratis) e incollare qui la Keystring; poi il pulsante *Collega
+il negozio Etsy* fa il resto, come per Google.
+
+### Collegare Printify
+
+Molto più semplice: nessun accesso da fare. Genera il token su *printify.com →
+Account → Connections* e mettilo in Cassaforte come **`PRINTIFY_API_TOKEN`**.
+
+### Un dato che non esiste
+
+Le API di Etsy **non danno le visite al negozio né il tasso di conversione**:
+restano solo nel pannello di Etsy. Il cruscotto mostra le *visualizzazioni per
+inserzione*, che sono un'altra cosa — e sono **totali dalla pubblicazione**, non
+del periodo scelto. È scritto anche sotto il numero, perché scambiarle per
+traffico recente porta a decisioni sbagliate.
+
+Gli agenti hanno lo strumento `stato_negozio` e la stessa avvertenza nel loro
+prompt: non devono inventare numeri che le API non danno.
+
 ## Collegare la posta
 
 Quartier Generale → **🔌 Strumenti agenti** → in cima, **Posta**.
