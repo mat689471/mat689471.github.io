@@ -681,7 +681,10 @@ def main():
         print("ERRORE: la variabile d'ambiente ANTHROPIC_API_KEY non e' impostata.")
         sys.exit(1)
 
-    client = anthropic.Anthropic(api_key=api_key)
+    # Con il tetto predefinito (10 minuti x 3 tentativi) una richiesta piantata
+    # tiene fermo tutto per mezz'ora senza dire niente. Cinque minuti bastano
+    # abbondantemente a una risposta lunga, e un guasto si vede subito.
+    client = anthropic.Anthropic(api_key=api_key, timeout=300.0, max_retries=2)
 
     memoria = carica_memoria()
     skills = elenca_skills()

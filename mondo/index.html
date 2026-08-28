@@ -698,6 +698,9 @@ window.ECO_CONFIG = {
     // approvazione in attesa
     setPending(d.pending||null);
 
+    // chi sta aspettando una risposta del modello (vedi orologioAttesa)
+    attesa = d.attesa || null;
+
     // autorizzazione completa
     orchestratoreVivo = !!d.orchestratore;
     setFull(valoreDa("fullaccess", d.fullaccess));
@@ -721,6 +724,29 @@ window.ECO_CONFIG = {
     renderRoster(); updateStats();
   }
 
+  /**
+   * L'orologio dell'attesa.
+   *
+   * Mentre un agente aspetta la risposta del modello non succede niente:
+   * niente righe nel terminale, niente movimento. Un lavoro che sta andando
+   * e uno morto si somigliano, e l'unica reazione sensata era ricaricare la
+   * pagina. Questo dice CHI sta aspettando e DA QUANTO, e i secondi scorrono
+   * anche fra un aggiornamento e l'altro, cosi' si vede che e' vivo.
+   */
+  let attesa=null;
+  function testoAttesa(){
+    if(!attesa || !attesa.da) return null;
+    const s=Math.max(0, Math.round((Date.now()-attesa.da)/1000));
+    const q=s<60 ? s+"s" : Math.floor(s/60)+"m "+(s%60)+"s";
+    return "\u23f3 "+(attesa.chi||"un agente")+" sta pensando \u00b7 "+q
+           + (attesa.cosa ? " \u00b7 "+attesa.cosa : "");
+  }
+  setInterval(()=>{
+    if(spento) return;
+    const t=testoAttesa();
+    if(t) document.getElementById("hint").textContent=t;
+  }, 1000);
+
   function setMode(m,fonte){
     const b=document.getElementById("badge"), t=document.getElementById("badgeText");
     // 'spento' vince su tutto: se il server non risponde, quello che si vede
@@ -735,7 +761,7 @@ window.ECO_CONFIG = {
     spia.style.color = spento ? "#ff6b6b" : "var(--good)";
     document.getElementById("hint").textContent = spento
       ? "Quello che vedi e' fermo all'ultimo aggiornamento riuscito."
-      : (fonte || "Trascina · rotella per zoom · clicca un agente");
+      : (testoAttesa() || fonte || "Trascina · rotella per zoom · clicca un agente");
   }
 
   /**

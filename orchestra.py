@@ -441,6 +441,7 @@ class Mondo(object):
         self.vetrina = None       # il lavoro finito, da vedere davvero
         self.vetrine = []         # quelli di prima, riapribili
         self.personale = False    # True = comanda il tuo agente personale
+        self.attesa = None        # chi sta aspettando una risposta del modello
         self.boss = {"id": "boss", "name": u"Orchestratore",
                      "status": "idle", "task": None, "thinking": None}
         self._ultimo_id_inbox = self._id_inbox_corrente()
@@ -466,6 +467,21 @@ class Mondo(object):
                 time.sleep(BATTITO_S)
         self._battito = threading.Thread(target=ciclo, daemon=True)
         self._battito.start()
+
+    # -- attesa del modello -------------------------------------------------
+    # Mentre un agente "pensa" non esce niente: ne' una riga nel terminale ne'
+    # un movimento nel mondo. Un lavoro che sta andando bene e uno morto si
+    # somigliano troppo, e l'unica reazione sensata e' ricaricare la pagina.
+    # Questo e' l'orologio dell'attesa: il battito lo ripubblica ogni secondo.
+    def inizia_attesa(self, chi, cosa):
+        with self._lock:
+            self.attesa = {"chi": chi, "cosa": (cosa or u"")[:70],
+                           "da": int(time.time() * 1000)}
+        self.pubblica()
+
+    def fine_attesa(self):
+        with self._lock:
+            self.attesa = None
 
     # -- vetrina -----------------------------------------------------------
     def mostra(self, voce):
@@ -498,6 +514,7 @@ class Mondo(object):
                 "vetrina": self.vetrina,
                 "vetrine": self.vetrine[-12:],
                 "personale": self.personale,
+                "attesa": self.attesa,
                 "sessione": {"id": self.sessione["id"], "titolo": self.sessione["titolo"]} if self.sessione else None,
                 "sessioni": self.archivio.elenco(),
                 "stats": {
@@ -996,6 +1013,13 @@ def _prompt_specialista(ag):
         u"La tua competenza: {}.".format(ag.get("skill", ag["role"])),
         u"Lavori su Windows con PowerShell. Ricevi istruzioni dall'ORCHESTRATORE, non dall'utente.",
         u"Esegui un comando alla volta con 'esegui_comando' e osserva l'output.",
+        u"DOVE SI LAVORA: tutto quello che produci va dentro la cartella "
+        u"'lavori', in una sottocartella col nome del progetto - per esempio "
+        u"'lavori/clinica-dentale'. Scrivi il percorso per intero in ogni "
+        u"comando ('lavori\\clinica-dentale\\app'), NON usare 'cd' e non creare "
+        u"cartelle nella radice del progetto: fuori da 'lavori' l'utente non "
+        u"vede niente, ne' nell'elenco dei Lavori ne' in Vetrina, e sembra che "
+        u"tu non abbia fatto nulla.",
         u"Aggiorna spesso 'avanzamento' cosi' l'utente vede a che punto sei.",
         u"Se produci qualcosa di consultabile mostralo con 'anteprima'.",
         u"Se ti serve una competenza che non hai, usa 'chiedi_a_collega'.",
@@ -1058,6 +1082,7 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
 
     while passi < MAX_PASSI_AGENTE:
         passi += 1
+        m.inizia_attesa(ag["name"], ag.get("task") or u"sta ragionando")
         try:
             risposta = client.messages.create(
                 model=agente.MODELLO, max_tokens=16000,
@@ -1065,8 +1090,10 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
                 tools=TOOLS_SPECIALISTA, messages=messaggi,
             )
         except Exception as e:
+            m.fine_attesa()
             riepilogo = u"(non ho potuto proseguire: {})".format(spiega_errore(e))
             break
+        m.fine_attesa()
         if risposta.stop_reason == "max_tokens":
             messaggi.append({"role": "user", "content":
                 u"La tua risposta e' stata tagliata perche' troppo lunga. "
@@ -1333,6 +1360,10 @@ def _prompt_orchestratore(memoria, ripresa=None):
         u"Come lavori:",
         u"- Ogni messaggio dell'utente arriva a te. Decidi tu come procedere.",
         u"- Per i compiti operativi usa 'assegna' scegliendo il ruolo giusto.",
+        u"- NELLE ISTRUZIONI DI' SEMPRE DOVE LAVORARE: una sola cartella per "
+        u"  tutto il progetto, dentro 'lavori' (es. 'lavori/clinica-dentale'), "
+        u"  la stessa per tutti gli agenti di questo lavoro. Fuori da 'lavori' "
+        u"  quello che producono non si vede.",
         u"- SFRUTTA LA SQUADRA: quando un obiettivo ha parti indipendenti, chiama",
         u"  'assegna' piu' volte NELLO STESSO TURNO. Lavoreranno in parallelo e",
         u"  l'utente vedra' l'ecosistema muoversi davvero. Non fare tutto da un",
@@ -1388,14 +1419,17 @@ def gestisci_messaggio(client, memoria, testo_utente, storico, ripresa=None):
 
     while passi < MAX_PASSI_ORCHESTRATORE:
         passi += 1
+        m.inizia_attesa(u"Orchestratore", u"decide come procedere")
         try:
             risposta = client.messages.create(
                 model=agente.MODELLO, max_tokens=16000, system=system,
                 tools=TOOLS_ORCHESTRATORE, messages=storico,
             )
         except Exception as e:
+            m.fine_attesa()
             m.dico(u"Orchestratore", spiega_errore(e), "boss", "#ff9f6b")
             break
+        m.fine_attesa()
         # Troncato a meta': NON e' una risposta finita. La parte tagliata puo'
         # contenere un incarico incompleto, quindi il turno mozzo si butta e
         # si richiede lo stesso lavoro chiedendo di essere piu' asciutti.
@@ -1826,14 +1860,17 @@ def gestisci_messaggio_personale(client, memoria, testo_utente, storico, ripresa
 
     while passi < MAX_PASSI_ORCHESTRATORE:
         passi += 1
+        m.inizia_attesa(u"Il tuo Agente", u"sta ragionando")
         try:
             risposta = client.messages.create(
                 model=agente.MODELLO, max_tokens=16000, system=system,
                 tools=TOOLS_PERSONALE, messages=storico,
             )
         except Exception as e:
+            m.fine_attesa()
             m.dico(u"Il tuo Agente", spiega_errore(e), "agent", ag["color"])
             break
+        m.fine_attesa()
 
         if risposta.stop_reason == "max_tokens":
             storico.append({"role": "user", "content":
