@@ -105,9 +105,21 @@
   .msg.me{align-self:flex-end;align-items:flex-end}
   .msg.me .txt{background:rgba(245,185,66,.13);border-color:rgba(245,185,66,.35);color:#ffe9bd}
   .msg.boss .txt{border-color:rgba(245,185,66,.25)}
-  .composer{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border-soft)}
-  .composer input{flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--border-soft);border-radius:9px;color:var(--ink);font-family:"Sora",sans-serif;font-size:13px;padding:10px 12px;outline:none}
-  .composer input:focus{border-color:var(--gold)}
+  .composer{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border-soft);align-items:flex-end}
+  /* Una casella che cresce con quello che scrivi: un promt lungo va visto tutto
+     prima di partire, perche' una volta mandato il lavoro comincia subito. */
+  .composer textarea{flex:1;min-width:0;background:var(--panel-2);border:1px solid var(--border-soft);
+    border-radius:9px;color:var(--ink);font-family:"Sora",sans-serif;font-size:13px;
+    padding:10px 12px;outline:none;resize:none;line-height:1.55;
+    /* una riga di testo: la spaziatura la aggiunge il box, se no a riposo
+       la casella resterebbe piu' alta di com'era prima del primo invio */
+    min-height:1.55em;max-height:min(340px,40vh);overflow-y:auto}
+  .composer textarea:focus{border-color:var(--gold)}
+  .composer .btn{flex:0 0 auto;align-self:flex-end}
+  .conta{padding:0 12px 8px;font-family:"JetBrains Mono",monospace;font-size:10.5px;
+         color:var(--faint);text-align:right;min-height:0}
+  .conta:empty{display:none}
+  .conta.vicino{color:var(--gold)}
 
   /* --- flusso --- */
   .stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;padding:10px 11px 3px}
@@ -252,9 +264,11 @@
     <h2>Sala Comando <span style="color:var(--good)">● live</span></h2>
     <div class="chat" id="chat"></div>
     <form class="composer" id="composer">
-      <input id="chatInput" type="text" maxlength="2000" autocomplete="off" placeholder="Scrivi all'Orchestratore…">
-      <button class="btn" type="submit">▶</button>
+      <textarea id="chatInput" rows="1" maxlength="20000" autocomplete="off"
+                placeholder="Scrivi all'Orchestratore…  (Invio per mandare, Maiusc+Invio per andare a capo)"></textarea>
+      <button class="btn" type="submit" title="Manda (Invio)">▶</button>
     </form>
+    <div class="conta" id="contaChat"></div>
     <div class="stats">
       <div class="stat"><div class="n" id="sDone" style="color:var(--good)">0</div><div class="l">Lavori</div></div>
       <div class="stat"><div class="n" id="sAgents" style="color:var(--violet)">0</div><div class="l">Agenti</div></div>
@@ -1154,7 +1168,8 @@ window.ECO_CONFIG = {
     document.querySelector(".tagline").textContent = v
       ? "Al comando c'è il tuo agente personale: parli con lui, e quando serve una squadra la chiede all'Orchestratore."
       : "Parli con l'Orchestratore nella Sala Comando: è lui che decide chi mettere al lavoro e ti riporta i risultati.";
-    chatInput.placeholder = v ? "Scrivi al tuo Agente…" : "Scrivi all'Orchestratore…";
+    chatInput.placeholder = (v ? "Scrivi al tuo Agente…" : "Scrivi all'Orchestratore…")
+      + "  (Invio per mandare, Maiusc+Invio per andare a capo)";
   }
   btnPers.onclick=async()=>{
     const nuovo=!personale;
@@ -1222,10 +1237,44 @@ window.ECO_CONFIG = {
 
   // ===================== CHAT =====================
   const composer=document.getElementById("composer"), chatInput=document.getElementById("chatInput");
+  const contaChat=document.getElementById("contaChat");
+  const MAX_MESSAGGIO=20000;
+
+  /**
+   * La casella prende l'altezza di quello che contiene, fino a un tetto.
+   * Su una casella vuota scrollHeight non dice la verita' - riporta l'altezza
+   * di prima, non quella di una riga - quindi a vuoto si toglie l'altezza
+   * imposta e si lascia decidere al foglio di stile. Il bordo va sommato
+   * perche' con box-sizing:border-box l'altezza lo comprende.
+   */
+  function adattaAltezza(){
+    if(!chatInput.value){ chatInput.style.height=""; return; }
+    chatInput.style.height="auto";
+    const bordo=chatInput.offsetHeight-chatInput.clientHeight;
+    chatInput.style.height=
+      Math.min(chatInput.scrollHeight+bordo, window.innerHeight*0.4, 340)+"px";
+  }
+  function aggiornaConta(){
+    const n=chatInput.value.length;
+    // il conteggio compare solo quando serve saperlo, non a ogni lettera
+    contaChat.textContent = n>800 ? n.toLocaleString("it")+" / "+MAX_MESSAGGIO.toLocaleString("it") : "";
+    contaChat.classList.toggle("vicino", n>MAX_MESSAGGIO*0.9);
+  }
+  chatInput.addEventListener("input",()=>{adattaAltezza();aggiornaConta();});
+  // incollare non fa scattare 'input' in tempo per la nuova altezza
+  chatInput.addEventListener("paste",()=>setTimeout(()=>{adattaAltezza();aggiornaConta();},0));
+  chatInput.addEventListener("keydown",e=>{
+    // Invio manda, Maiusc+Invio va a capo: un promt lungo si scrive su piu' righe
+    if(e.key==="Enter" && !e.shiftKey && !e.isComposing){
+      e.preventDefault();
+      composer.requestSubmit();
+    }
+  });
+
   composer.addEventListener("submit",async e=>{
     e.preventDefault();
     const text=chatInput.value.trim(); if(!text) return;
-    chatInput.value="";
+    chatInput.value=""; adattaAltezza(); aggiornaConta();
     chatMsgs.push({id:Date.now(),from:"Tu",role:"user",color:"#f5b942",text,ts:clock()});
     renderChat(); tu.bubble={text:text.slice(0,60),ttl:3}; tu.talk=1.4;
     try{ await invia({type:"message",text}); }

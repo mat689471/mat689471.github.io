@@ -133,6 +133,21 @@ sono un'altra cosa: vivono nel tuo account Claude e si autenticano con un access
 che non ti lascia una chiave da incollare, quindi non si attaccano qui. Per dare
 quelle capacità agli agenti serve il connettore del servizio con una sua chiave.
 
+## Dare un incarico lungo
+
+La casella della Sala Comando cresce con quello che scrivi, fino a riempire quasi
+metà del riquadro. Un incarico serio si scrive per esteso, e va **visto tutto**
+prima di partire: una volta mandato, il lavoro comincia subito e non puoi
+completarlo con un secondo messaggio.
+
+- **Invio** manda
+- **Maiusc + Invio** va a capo
+- Oltre gli 800 caratteri compare il conteggio, così sai quanto spazio resta
+
+Il limite è di 20.000 caratteri — circa dieci pagine. Prima erano 2.000, e il
+taglio avveniva **in silenzio**: la richiesta partiva monca senza che niente lo
+dicesse.
+
 ## Collegare la posta
 
 Quartier Generale → **🔌 Strumenti agenti** → in cima, **Posta**.

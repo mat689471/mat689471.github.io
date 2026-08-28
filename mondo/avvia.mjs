@@ -101,7 +101,9 @@ const server = http.createServer(async (req, res) => {
           const type = String(p.type || "message");
           const voce = { id: Date.now(), type, ts: new Date().toISOString() };
           if (type === "message") {
-            voce.text = String(p.text || "").slice(0, 2000).trim();
+            // Un incarico serio si scrive per esteso: 2000 caratteri tagliavano
+            // a meta' le richieste vere, e il taglio non si vedeva.
+            voce.text = String(p.text || "").slice(0, 20000).trim();
             if (!voce.text) { res.writeHead(400, JSONH); return res.end('{"ok":false,"err":"vuoto"}'); }
           } else if (type === "fullaccess" || type === "agente_personale" || type === "posta_libera") {
             voce.value = !!p.value;
