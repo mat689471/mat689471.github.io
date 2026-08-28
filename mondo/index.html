@@ -689,8 +689,9 @@ window.ECO_CONFIG = {
     setPending(d.pending||null);
 
     // autorizzazione completa
-    setFull(!!d.fullaccess);
-    setPosta(!!d.postaLibera);
+    orchestratoreVivo = !!d.orchestratore;
+    setFull(valoreDa("fullaccess", d.fullaccess));
+    setPosta(valoreDa("postaLibera", d.postaLibera));
 
     // resoconto
     if(d.report && JSON.stringify(d.report)!==JSON.stringify(report)){
@@ -701,7 +702,7 @@ window.ECO_CONFIG = {
     if(Array.isArray(d.sessioni)){ sessioni=d.sessioni; sessioneCorrente=d.sessione||null; renderSessioni(); }
 
     // chi comanda: Orchestratore o il tuo agente personale
-    setPersonale(!!d.personale);
+    setPersonale(valoreDa("personale", d.personale));
 
     // cosa hanno in dotazione gli agenti: chiavi (solo i nomi), Skill, strumenti MCP
     renderDotazione(d.chiavi, d.competenze, d.strumentiMcp);
@@ -1396,6 +1397,34 @@ window.ECO_CONFIG = {
   document.getElementById("apOk").onclick=async()=>{ mApprove.classList.remove("open"); try{await invia({type:"approve"});}catch(e){} };
   document.getElementById("apDeny").onclick=async()=>{ mApprove.classList.remove("open"); try{await invia({type:"deny"});}catch(e){} };
 
+  /**
+   * Gli interruttori chiesti ma non ancora confermati.
+   *
+   * I tre interruttori (Autorizzazione, Mail libere, Il mio Agente) li applica
+   * l'Orchestratore: la richiesta finisce in inbox.json e lui la legge. Se
+   * pero' agente.py non e' ancora partito, nessuno la legge, e l'aggiornamento
+   * successivo - che arriva dopo due secondi - rimetteva l'interruttore com'era
+   * prima. Si cliccava e non succedeva niente, senza una parola.
+   *
+   * Adesso la scelta viene ricordata qui e resta accesa fino a quando
+   * l'Orchestratore c'e' davvero: allora comanda lui, come deve essere.
+   */
+  const richiesto = { fullaccess:null, postaLibera:null, personale:null };
+  function chiesto(campo, valore){
+    richiesto[campo] = valore;
+    if(!orchestratoreVivo)
+      logLine("Sistema", "#8a96b3", "annotato: diventa effettivo appena parte l'Orchestratore (python agente.py --mondo)");
+  }
+  // quale valore mostrare: comanda l'Orchestratore se c'e', altrimenti la tua scelta
+  function valoreDa(campo, dalMondo){
+    if(orchestratoreVivo){
+      if(richiesto[campo]!==null && richiesto[campo]===!!dalMondo) richiesto[campo]=null;
+      if(richiesto[campo]===null) return !!dalMondo;
+    }
+    return richiesto[campo]!==null ? richiesto[campo] : !!dalMondo;
+  }
+  let orchestratoreVivo=false;
+
   // ===================== AUTORIZZAZIONE COMPLETA =====================
   const mFull=document.getElementById("mFull"), btnFull=document.getElementById("btnFull");
   function setFull(v){
@@ -1417,22 +1446,22 @@ window.ECO_CONFIG = {
             v?"invio mail senza conferma ATTIVO":"le mail tornano a chiedere conferma");
   }
   btnPosta.onclick=async()=>{
-    if(postaLibera){ try{await invia({type:"posta_libera",value:false});}catch(e){} setPosta(false); }
+    if(postaLibera){ try{await invia({type:"posta_libera",value:false}); chiesto("postaLibera",false);}catch(e){} setPosta(false); }
     else mPosta.classList.add("open");
   };
   document.getElementById("postaOn").onclick=async()=>{
     mPosta.classList.remove("open");
-    try{ await invia({type:"posta_libera",value:true}); setPosta(true); }
+    try{ await invia({type:"posta_libera",value:true}); chiesto("postaLibera",true); setPosta(true); }
     catch(e){ alert("Non riesco a raggiungere il server del mondo.\n\nRiapri AVVIA.bat, oppure la finestra «Ecosistema - mondo» se l'hai chiusa."); }
   };
   document.getElementById("postaCancel").onclick=()=>mPosta.classList.remove("open");
   document.getElementById("postaX").onclick=()=>mPosta.classList.remove("open");
 
   btnFull.onclick=async()=>{
-    if(fullaccess){ try{await invia({type:"fullaccess",value:false});}catch(e){} setFull(false); }
+    if(fullaccess){ try{await invia({type:"fullaccess",value:false}); chiesto("fullaccess",false);}catch(e){} setFull(false); }
     else mFull.classList.add("open");
   };
-  document.getElementById("fullOn").onclick=async()=>{ mFull.classList.remove("open"); try{await invia({type:"fullaccess",value:true});setFull(true);}catch(e){alert("Non riesco a raggiungere il server del mondo.\n\nRiapri AVVIA.bat, oppure la finestra «Ecosistema - mondo» se l'hai chiusa.");} };
+  document.getElementById("fullOn").onclick=async()=>{ mFull.classList.remove("open"); try{await invia({type:"fullaccess",value:true});chiesto("fullaccess",true);setFull(true);}catch(e){alert("Non riesco a raggiungere il server del mondo.\n\nRiapri AVVIA.bat, oppure la finestra «Ecosistema - mondo» se l'hai chiusa.");} };
   document.getElementById("fullCancel").onclick=()=>mFull.classList.remove("open");
   document.getElementById("fullX").onclick=()=>mFull.classList.remove("open");
 
@@ -1467,7 +1496,7 @@ window.ECO_CONFIG = {
   }
   btnPers.onclick=async()=>{
     const nuovo=!personale;
-    try{ await invia({type:"agente_personale",value:nuovo}); setPersonale(nuovo); }
+    try{ await invia({type:"agente_personale",value:nuovo}); chiesto("personale",nuovo); setPersonale(nuovo); }
     catch(e){ logLine("Sistema","#ff9f6b","interruttore non cambiato: "+e.message); }
   };
 
