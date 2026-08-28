@@ -99,8 +99,13 @@ const server = http.createServer(async (req, res) => {
       let body = "";
       req.on("data", (c) => { body += c; if (body.length > 200000) req.destroy(); });
       req.on("end", async () => {
+        // Una richiesta scritta male e' colpa di chi la manda, non del server:
+        // deve tornare 400. Col 500 la Sala Comando concludeva che il server
+        // era caduto e mostrava «server fermo» a un server perfettamente vivo.
+        let p;
+        try { p = JSON.parse(body || "{}"); }
+        catch { res.writeHead(400, JSONH); return res.end('{"ok":false,"err":"json non valido"}'); }
         try {
-          const p = JSON.parse(body || "{}");
           const type = String(p.type || "message");
           const voce = { id: Date.now(), type, ts: new Date().toISOString() };
           if (type === "message") {
@@ -301,7 +306,11 @@ const server = http.createServer(async (req, res) => {
       return json(res, 405, { ok: false });
     }
 
-    let urlPath = decodeURIComponent(req.url.split("?")[0]);
+    let urlPath;
+    // un indirizzo con percentuali storte (%c0%af) fa saltare la decodifica:
+    // e' una richiesta sbagliata, non un guasto del server
+    try { urlPath = decodeURIComponent(req.url.split("?")[0]); }
+    catch { res.writeHead(400); return res.end("Indirizzo non valido"); }
     if (urlPath === "/") urlPath = "/index.html";
 
     // Gli avatar 3D stanno in <progetto>/avatar/, fuori da mondo/: li serviamo
@@ -411,5 +420,27 @@ function ascolta(port) {
     setTimeout(() => apriBrowser(url), 800);
   });
 }
+
+/**
+ * La finestra non deve chiudersi da sola.
+ *
+ * Fino a ieri un errore non previsto - una richiesta storta, una promessa
+ * rifiutata dentro un gestore - faceva terminare Node: la finestra
+ * «Ecosistema - mondo» spariva senza dire niente, il mondo nel browser
+ * restava fermo all'ultima fotografia riuscita e ogni comando cadeva nel
+ * vuoto. Meglio scrivere cosa e' successo e continuare a rispondere.
+ */
+process.on("uncaughtException", (e) => {
+  console.error("\n[errore non previsto] " + (e && e.stack ? e.stack : e));
+  console.error("Il server resta acceso. Se qualcosa non funziona, chiudi la finestra e riapri AVVIA.bat.\n");
+});
+process.on("unhandledRejection", (e) => {
+  console.error("\n[richiesta fallita] " + (e && e.stack ? e.stack : e));
+  console.error("Il server resta acceso.\n");
+});
+// Una richiesta malformata (un browser che chiude a meta') non deve far rumore
+server.on("clientError", (err, socket) => {
+  if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
+});
 
 ascolta(PORT_BASE);

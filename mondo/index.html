@@ -304,11 +304,12 @@
   </div>
 
   <div class="panel">
-    <h2>Sala Comando <span style="color:var(--good)">● live</span></h2>
+    <h2>Sala Comando <span id="spiaChat" style="color:var(--good)">● live</span></h2>
     <div class="chat" id="chat"></div>
     <form class="composer" id="composer">
       <textarea id="chatInput" rows="1" maxlength="20000" autocomplete="off"
-                placeholder="Scrivi all'Orchestratore…  (Invio per mandare, Maiusc+Invio per andare a capo)"></textarea>
+                placeholder="Scrivi all'Orchestratore…"
+                title="Invio per mandare, Maiusc+Invio per andare a capo"></textarea>
       <button class="btn" type="submit" title="Manda (Invio)">▶</button>
     </form>
     <div class="conta" id="contaChat"></div>
@@ -591,8 +592,10 @@ window.ECO_CONFIG = {
       try{
         const r=await fetch(CFG.endpoint+(CFG.endpoint.includes("?")?"&":"?")+"t="+Date.now(),{cache:"no-store"});
         if(!r.ok) throw new Error("HTTP "+r.status);
-        apply(await r.json()); return true;
-      }catch(e){ return false; }
+        apply(await r.json());
+        segnalaSpento(false);
+        return true;
+      }catch(e){ segnalaSpento(true); return false; }
     }
   };
 
@@ -709,15 +712,51 @@ window.ECO_CONFIG = {
 
   function setMode(m,fonte){
     const b=document.getElementById("badge"), t=document.getElementById("badgeText");
-    if(m==="live"){ b.className="badge live"; t.textContent="orchestratore attivo"; }
+    // 'spento' vince su tutto: se il server non risponde, quello che si vede
+    // e' l'ultima fotografia riuscita, non la realta' di adesso
+    if(spento){ b.className="badge"; t.textContent="server fermo — riavvia AVVIA.bat"; }
+    else if(m==="live"){ b.className="badge live"; t.textContent="orchestratore attivo"; }
     else if(m==="half"){ b.className="badge demo"; t.textContent="in attesa dell'orchestratore"; }
     else { b.className="badge"; t.textContent="non collegato"; }
-    document.getElementById("hint").textContent = fonte ? fonte : "Trascina · rotella per zoom · clicca un agente";
+    if(!spento && m) ultimoModo=m;
+    const spia=document.getElementById("spiaChat");
+    spia.textContent = spento ? "\u25cf fermo" : "\u25cf live";
+    spia.style.color = spento ? "#ff6b6b" : "var(--good)";
+    document.getElementById("hint").textContent = spento
+      ? "Quello che vedi e' fermo all'ultimo aggiornamento riuscito."
+      : (fonte || "Trascina · rotella per zoom · clicca un agente");
+  }
+
+  /**
+   * Il server non risponde piu'.
+   *
+   * Finora il mondo continuava a mostrare «orchestratore attivo» - l'ultimo
+   * stato riuscito - mentre ogni comando falliva: due messaggi in
+   * contraddizione, e nessuno dei due diceva la cosa utile. Adesso lo stato
+   * dice che e' fermo, cosi' si sa che quello che si vede e' vecchio.
+   */
+  let spento=false, ultimoModo="half";
+  function segnalaSpento(si){
+    if(si===spento) return;
+    spento=si;
+    // tornando raggiungibile non si sa ancora se l'orchestratore c'e': si
+    // rimette l'ultimo stato noto, e il primo aggiornamento dira' la verita'
+    setMode(spento ? "off" : ultimoModo);
+    logLine("Sistema", spento?"#ff6b6b":"#4ce0a5",
+      spento ? "il server del mondo non risponde: riapri AVVIA.bat (o la finestra «Ecosistema - mondo»)"
+             : "server del mondo di nuovo raggiungibile");
   }
 
   async function invia(payload){
-    const r=await fetch(CFG.controlEndpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-    if(!r.ok) throw new Error("HTTP "+r.status);
+    let r;
+    try{ r=await fetch(CFG.controlEndpoint,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}); }
+    catch(e){ segnalaSpento(true); throw new Error("server non raggiungibile"); }
+    if(!r.ok){
+      // 4xx e' una richiesta sbagliata, non un server assente: non confonderli
+      if(r.status>=500) segnalaSpento(true);
+      throw new Error("HTTP "+r.status);
+    }
+    segnalaSpento(false);
     return r.json();
   }
 
@@ -1384,7 +1423,7 @@ window.ECO_CONFIG = {
   document.getElementById("postaOn").onclick=async()=>{
     mPosta.classList.remove("open");
     try{ await invia({type:"posta_libera",value:true}); setPosta(true); }
-    catch(e){ alert("Serve l'ecosistema avviato in locale."); }
+    catch(e){ alert("Non riesco a raggiungere il server del mondo.\n\nRiapri AVVIA.bat, oppure la finestra «Ecosistema - mondo» se l'hai chiusa."); }
   };
   document.getElementById("postaCancel").onclick=()=>mPosta.classList.remove("open");
   document.getElementById("postaX").onclick=()=>mPosta.classList.remove("open");
@@ -1393,7 +1432,7 @@ window.ECO_CONFIG = {
     if(fullaccess){ try{await invia({type:"fullaccess",value:false});}catch(e){} setFull(false); }
     else mFull.classList.add("open");
   };
-  document.getElementById("fullOn").onclick=async()=>{ mFull.classList.remove("open"); try{await invia({type:"fullaccess",value:true});setFull(true);}catch(e){alert("Serve l'ecosistema avviato in locale.");} };
+  document.getElementById("fullOn").onclick=async()=>{ mFull.classList.remove("open"); try{await invia({type:"fullaccess",value:true});setFull(true);}catch(e){alert("Non riesco a raggiungere il server del mondo.\n\nRiapri AVVIA.bat, oppure la finestra «Ecosistema - mondo» se l'hai chiusa.");} };
   document.getElementById("fullCancel").onclick=()=>mFull.classList.remove("open");
   document.getElementById("fullX").onclick=()=>mFull.classList.remove("open");
 
