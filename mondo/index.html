@@ -317,6 +317,7 @@
       <div class="stat"><div class="n" id="sDone" style="color:var(--good)">0</div><div class="l">Lavori</div></div>
       <div class="stat"><div class="n" id="sAgents" style="color:var(--violet)">0</div><div class="l">Agenti</div></div>
       <div class="stat"><div class="n" id="sCmd" style="color:var(--cyan)">0</div><div class="l">Comandi</div></div>
+      <div class="stat" id="statSpesa" title="Quanto e' costato questo lavoro finora"><div class="n" id="sSpesa" style="color:var(--coral)">—</div><div class="l">Spesa</div></div>
     </div>
     <div class="feed" id="feed" style="max-height:180px"></div>
   </div>
@@ -700,6 +701,7 @@ window.ECO_CONFIG = {
 
     // chi sta aspettando una risposta del modello (vedi orologioAttesa)
     attesa = d.attesa || null;
+    spesa = d.spesa || null;
 
     // autorizzazione completa
     orchestratoreVivo = !!d.orchestratore;
@@ -733,7 +735,7 @@ window.ECO_CONFIG = {
    * pagina. Questo dice CHI sta aspettando e DA QUANTO, e i secondi scorrono
    * anche fra un aggiornamento e l'altro, cosi' si vede che e' vivo.
    */
-  let attesa=null;
+  let attesa=null, spesa=null;
   function testoAttesa(){
     if(!attesa || !attesa.da) return null;
     const s=Math.max(0, Math.round((Date.now()-attesa.da)/1000));
@@ -1412,6 +1414,21 @@ window.ECO_CONFIG = {
     document.getElementById("sDone").textContent=stats.done||0;
     document.getElementById("sAgents").textContent=agents.size;
     document.getElementById("sCmd").textContent=stats.comandi||0;
+
+    /* Quanto sta costando, mentre costa. Il conto di Anthropic arriva a fine
+       mese: troppo tardi per accorgersi che uno sciame ha insistito per
+       un'ora. Qui il numero e' sotto gli occhi, e diventa arancione quando si
+       avvicina al tetto oltre il quale lo sciame si ferma da solo. */
+    const e=document.getElementById("sSpesa"), box=document.getElementById("statSpesa");
+    if(!spesa){ e.textContent="—"; return; }
+    const d=Number(spesa.dollari)||0, tetto=Number(spesa.tetto)||0;
+    e.textContent = d<0.01 ? "<0,01 $" : d.toLocaleString("it",{minimumFractionDigits:2,maximumFractionDigits:2})+" $";
+    e.style.color = (tetto>0 && d>=tetto) ? "#ff6b6b"
+                  : (tetto>0 && d>=tetto*0.7) ? "var(--coral)" : "var(--good)";
+    const risp = spesa.dallaCache ? " · "+Math.round(spesa.dallaCache/1000)+"k gettoni riletti dalla cache invece che ripagati" : "";
+    box.title = "Questo lavoro finora: "+e.textContent
+              + (tetto>0 ? " · si ferma da solo a "+tetto.toFixed(2)+" $" : "")
+              + " · "+(spesa.chiamate||0)+" chiamate al modello ("+(spesa.modello||"?")+")" + risp;
   }
   function setObjective(t){
     const b=document.getElementById("objbar");

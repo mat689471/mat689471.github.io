@@ -265,6 +265,43 @@ un centesimo finché non è un cliente vero a premere «Paga». Gli agenti non
 vedono mai il valore di una chiave: chiedono al mondo, e il mondo risponde con i
 link.
 
+## Quanto costa, mentre costa
+
+Ogni pensiero degli agenti e' una chiamata a pagamento, e uno sciame che
+insiste da solo puo' spendere parecchio senza che tu te ne accorga: il conto
+di Anthropic arriva a fine mese, troppo tardi.
+
+Nella Sala Comando, accanto a Lavori / Agenti / Comandi, c'e' **Spesa**: quanto
+e' costato *questo* lavoro finora. Verde finche' e' tranquillo, arancione
+quando si avvicina al tetto, rosso quando lo supera. Passandoci sopra col
+mouse vedi il dettaglio: quante chiamate, quale modello, e quanti gettoni sono
+stati riletti dalla cache invece che ripagati.
+
+**Il tetto.** Superati **2 dollari** su uno stesso lavoro, lo sciame si ferma
+da solo e te lo dice. Non e' un guasto: e' un freno. Scrivi «continua» e
+riparte, col contatore azzerato. Per cambiare il tetto:
+
+```
+set ECOSISTEMA_TETTO_DOLLARI=5
+```
+
+prima di lanciare `AVVIA.bat` (0 = nessun limite, sconsigliato).
+
+**Spendere meno.** Due leve, in ordine di resa:
+
+1. *La cache e' gia' accesa.* La parte di conversazione che si ripete a ogni
+   passo viene riletta invece che ripagata: costa un decimo. Su un lavoro
+   lungo taglia circa **due terzi** della spesa, senza togliere niente.
+2. *Un modello piu' economico.* Il predefinito e' Opus (5 $ / 25 $ per milione
+   di gettoni). Sonnet 5 costa 2 $ / 10 $ - due volte e mezzo meno, con un po'
+   meno testa sui lavori lunghi:
+
+   ```
+   set ECOSISTEMA_MODELLO=claude-sonnet-5
+   ```
+
+Per vedere il conto vero, sempre: **platform.claude.com/dashboard**.
+
 ## La Vetrina: vedere il lavoro finito
 
 Quando un agente finisce qualcosa di guardabile — una pagina web, un'immagine,

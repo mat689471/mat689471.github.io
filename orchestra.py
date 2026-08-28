@@ -515,6 +515,7 @@ class Mondo(object):
                 "vetrine": self.vetrine[-12:],
                 "personale": self.personale,
                 "attesa": self.attesa,
+                "spesa": SPESA.fotografia(),
                 "sessione": {"id": self.sessione["id"], "titolo": self.sessione["titolo"]} if self.sessione else None,
                 "sessioni": self.archivio.elenco(),
                 "stats": {
@@ -710,6 +711,88 @@ class Mondo(object):
                     "#4ce0a5" if esito else "#ff9f6b")
         self.pubblica()
         return esito
+
+
+# ===========================================================================
+# Quanto costa
+# ---------------------------------------------------------------------------
+# Un ecosistema che lavora da solo spende da solo. Finche' il conto si vede
+# solo sul sito di Anthropic, a fine mese, e' troppo tardi. Qui si conta ogni
+# chiamata mentre succede, e il numero finisce nel mondo.
+#
+# Prezzi in dollari per milione di gettoni (ingresso, uscita).
+PREZZI = {
+    "claude-fable-5":   (10.0, 50.0),
+    "claude-opus-5":     (5.0, 25.0),
+    "claude-opus-4-8":   (5.0, 25.0),
+    "claude-opus-4-7":   (5.0, 25.0),
+    "claude-opus-4-6":   (5.0, 25.0),
+    "claude-sonnet-5":   (2.0, 10.0),
+    "claude-sonnet-4-6": (3.0, 15.0),
+    "claude-haiku-4-5":  (1.0,  5.0),
+}
+PREZZO_IGNOTO = (5.0, 25.0)   # nel dubbio si stima al rialzo
+
+# Il tetto di spesa per UN lavoro. Non e' un dettaglio tecnico: uno sciame che
+# insiste da solo puo' bruciare in un pomeriggio piu' di quanto valga il
+# lavoro. Superato il tetto lo sciame si ferma e lo dice, invece di scoprirlo
+# a fine mese. Si cambia con la variabile ECOSISTEMA_TETTO_DOLLARI; 0 = nessun
+# limite (sconsigliato).
+try:
+    TETTO_DOLLARI = float(os.environ.get("ECOSISTEMA_TETTO_DOLLARI", "2"))
+except ValueError:
+    TETTO_DOLLARI = 2.0
+
+
+class Contatore(object):
+    """Somma i gettoni e li traduce in soldi, chiamata per chiamata."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.azzera()
+
+    def azzera(self):
+        with self._lock:
+            self.dentro = self.fuori = self.letti = self.scritti = 0
+            self.dollari = 0.0
+            self.chiamate = 0
+
+    def conta(self, modello, uso):
+        if uso is None:
+            return
+        p_in, p_out = PREZZI.get(modello, PREZZO_IGNOTO)
+        dentro   = getattr(uso, "input_tokens", 0) or 0
+        fuori    = getattr(uso, "output_tokens", 0) or 0
+        # una lettura dalla cache costa un decimo, una scrittura un quarto in piu'
+        letti    = getattr(uso, "cache_read_input_tokens", 0) or 0
+        scritti  = getattr(uso, "cache_creation_input_tokens", 0) or 0
+        costo = (dentro * p_in + fuori * p_out
+                 + letti * p_in * 0.1 + scritti * p_in * 1.25) / 1000000.0
+        with self._lock:
+            self.dentro += dentro; self.fuori += fuori
+            self.letti += letti;   self.scritti += scritti
+            self.dollari += costo; self.chiamate += 1
+
+    def superato(self):
+        if TETTO_DOLLARI <= 0:
+            return False
+        with self._lock:
+            return self.dollari >= TETTO_DOLLARI
+
+    def fotografia(self):
+        with self._lock:
+            risparmiati = self.letti
+            return {
+                "dollari": round(self.dollari, 4),
+                "gettoni": self.dentro + self.fuori + self.letti + self.scritti,
+                "chiamate": self.chiamate,
+                "dallaCache": risparmiati,
+                "modello": agente.MODELLO,
+                "tetto": TETTO_DOLLARI,
+            }
+
+
+SPESA = Contatore()
 
 
 MONDO = None
@@ -1079,14 +1162,23 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
     messaggi = [{"role": "user", "content": istruzioni}]
     riepilogo = None
     passi = 0
+    # Costruito una volta sola: se cambiasse anche di un byte fra un passo e
+    # l'altro, la cache non varrebbe piu' niente.
+    sistema = _prompt_specialista(ag)
 
     while passi < MAX_PASSI_AGENTE:
         passi += 1
+        if SPESA.superato():
+            riepilogo = (u"(mi sono fermato: superato il tetto di spesa di "
+                         u"{:.2f} $ per questo lavoro)".format(TETTO_DOLLARI))
+            break
         m.inizia_attesa(ag["name"], ag.get("task") or u"sta ragionando")
         try:
             risposta = client.messages.create(
                 model=agente.MODELLO, max_tokens=16000,
-                system=_prompt_specialista(ag),
+                system=[{"type": "text", "text": sistema,
+                         "cache_control": {"type": "ephemeral"}}],
+                cache_control={"type": "ephemeral"},
                 tools=TOOLS_SPECIALISTA, messages=messaggi,
             )
         except Exception as e:
@@ -1094,6 +1186,7 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
             riepilogo = u"(non ho potuto proseguire: {})".format(spiega_errore(e))
             break
         m.fine_attesa()
+        SPESA.conta(agente.MODELLO, getattr(risposta, "usage", None))
         if risposta.stop_reason == "max_tokens":
             messaggi.append({"role": "user", "content":
                 u"La tua risposta e' stata tagliata perche' troppo lunga. "
@@ -1419,10 +1512,23 @@ def gestisci_messaggio(client, memoria, testo_utente, storico, ripresa=None):
 
     while passi < MAX_PASSI_ORCHESTRATORE:
         passi += 1
+        if SPESA.superato():
+            m.dico(u"Orchestratore",
+                   u"Mi fermo qui: questo lavoro ha gia' speso {:.2f} $ e il tetto "
+                   u"e' {:.2f} $. Scrivimi «continua» per proseguire lo stesso, "
+                   u"oppure alza il tetto (variabile ECOSISTEMA_TETTO_DOLLARI).".format(
+                       SPESA.fotografia()["dollari"], TETTO_DOLLARI),
+                   "boss", "#ff9f6b")
+            break
         m.inizia_attesa(u"Orchestratore", u"decide come procedere")
         try:
             risposta = client.messages.create(
-                model=agente.MODELLO, max_tokens=16000, system=system,
+                model=agente.MODELLO, max_tokens=16000,
+                system=[{"type": "text", "text": system,
+                         "cache_control": {"type": "ephemeral"}}],
+                # la conversazione cresce a ogni passo: rileggerla dalla cache
+                # costa un decimo di riscriverla da capo
+                cache_control={"type": "ephemeral"},
                 tools=TOOLS_ORCHESTRATORE, messages=storico,
             )
         except Exception as e:
@@ -1430,6 +1536,7 @@ def gestisci_messaggio(client, memoria, testo_utente, storico, ripresa=None):
             m.dico(u"Orchestratore", spiega_errore(e), "boss", "#ff9f6b")
             break
         m.fine_attesa()
+        SPESA.conta(agente.MODELLO, getattr(risposta, "usage", None))
         # Troncato a meta': NON e' una risposta finita. La parte tagliata puo'
         # contenere un incarico incompleto, quindi il turno mozzo si butta e
         # si richiede lo stesso lavoro chiedendo di essere piu' asciutti.
@@ -1606,6 +1713,12 @@ def avvia(client, memoria):
 
                 if tipo == "message" and (v.get("text") or "").strip():
                     testo = v["text"].strip()
+                    # Se lo sciame si era fermato per il tetto, un nuovo
+                    # messaggio e' il tuo permesso a spendere ancora: si
+                    # riparte da zero sul contatore di questo lavoro.
+                    if SPESA.superato():
+                        SPESA.azzera()
+                        MONDO.evento(u"Sistema", u"contatore di spesa azzerato: riparto", "#8a96b3")
                     print(u"\n[dal mondo] {}".format(testo))
                     try:
                         if MONDO.personale:
@@ -1863,7 +1976,10 @@ def gestisci_messaggio_personale(client, memoria, testo_utente, storico, ripresa
         m.inizia_attesa(u"Il tuo Agente", u"sta ragionando")
         try:
             risposta = client.messages.create(
-                model=agente.MODELLO, max_tokens=16000, system=system,
+                model=agente.MODELLO, max_tokens=16000,
+                system=[{"type": "text", "text": system,
+                         "cache_control": {"type": "ephemeral"}}],
+                cache_control={"type": "ephemeral"},
                 tools=TOOLS_PERSONALE, messages=storico,
             )
         except Exception as e:
@@ -1871,6 +1987,7 @@ def gestisci_messaggio_personale(client, memoria, testo_utente, storico, ripresa
             m.dico(u"Il tuo Agente", spiega_errore(e), "agent", ag["color"])
             break
         m.fine_attesa()
+        SPESA.conta(agente.MODELLO, getattr(risposta, "usage", None))
 
         if risposta.stop_reason == "max_tokens":
             storico.append({"role": "user", "content":

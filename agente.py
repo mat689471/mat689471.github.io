@@ -48,7 +48,13 @@ except ImportError:
 # Costanti e percorsi
 # ---------------------------------------------------------------------------
 
-MODELLO = "claude-opus-4-8"
+# Il modello si puo' cambiare senza toccare il codice:
+#   set ECOSISTEMA_MODELLO=claude-sonnet-5
+# Sonnet 5 costa 2 $ / 10 $ per milione di gettoni contro i 5 $ / 25 $ di
+# Opus: due volte e mezzo meno, a fronte di un po' meno testa sui lavori
+# lunghi. Nomi validi: claude-opus-5, claude-opus-4-8, claude-sonnet-5,
+# claude-haiku-4-5.
+MODELLO = os.environ.get("ECOSISTEMA_MODELLO", "").strip() or "claude-opus-4-8"
 # Alcuni comandi legittimi sono lenti: scaricare un modello 3D da decine di MB
 # supera facilmente il minuto e mezzo. Meglio dare respiro che troncare lavoro
 # buono a meta'.
