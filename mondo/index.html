@@ -648,9 +648,19 @@ window.ECO_CONFIG = {
 
     // chat
     if(Array.isArray(d.chat)){
+      /* Il messaggio che scrivi compare subito, prima di partire: e' giusto,
+         ma quando torna indietro dall'Orchestratore ha un altro numero
+         d'identita' (l'ora del suo orologio, non del tuo). Confrontando solo
+         i numeri lo stesso messaggio veniva scritto due volte. Quello che hai
+         appena scritto lo si riconosce dal testo: al ritorno prende il posto
+         della copia locale invece di aggiungersi. */
       const nuovi=d.chat.filter(m=>!chatMsgs.some(x=>x.id===m.id&&x.text===m.text));
       if(nuovi.length){
         for(const m of nuovi){
+          if(m.role==="user"){
+            const i=chatMsgs.findIndex(x=>x._locale && x.role==="user" && x.text===m.text);
+            if(i>=0){ chatMsgs[i]=m; continue; }
+          }
           chatMsgs.push(m);
           const src = m.role==="user"?tu:boss;
           src.bubble={text:m.text.slice(0,70),ttl:3.2}; src.talk=1.2;
@@ -1598,10 +1608,10 @@ window.ECO_CONFIG = {
     e.preventDefault();
     const text=chatInput.value.trim(); if(!text) return;
     chatInput.value=""; adattaAltezza(); aggiornaConta();
-    chatMsgs.push({id:Date.now(),from:"Tu",role:"user",color:"#f5b942",text,ts:clock()});
+    chatMsgs.push({id:Date.now(),from:"Tu",role:"user",color:"#f5b942",text,ts:clock(),_locale:true});
     renderChat(); tu.bubble={text:text.slice(0,60),ttl:3}; tu.talk=1.4;
     try{ await invia({type:"message",text}); }
-    catch(err){ logLine("Sistema","#ff9f6b","non riesco a raggiungere l'ecosistema: avvialo con node avvia.mjs e python agente.py --mondo"); }
+    catch(err){ logLine("Sistema","#ff9f6b","messaggio non partito: "+err.message); }
   });
 
   // ===================== AVATAR / 3D =====================

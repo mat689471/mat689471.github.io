@@ -719,7 +719,9 @@ def carica_chiavi():
             with urllib.request.urlopen(url, timeout=1.5) as r:
                 dati = json.loads(r.read().decode("utf-8"))
             ambiente = dati.get("ambiente") or {}
-            agente.AMBIENTE_CASSAFORTE = {str(k): str(v) for k, v in ambiente.items()}
+            # .strip(): una chiave con uno spazio incollato davanti fa fallire
+            # l'autenticazione con un errore che parla di credenziali mancanti.
+            agente.AMBIENTE_CASSAFORTE = {str(k): str(v).strip() for k, v in ambiente.items()}
             # Anche i connettori su internet hanno bisogno delle chiavi: le
             # ricevono qui, in memoria, mai scritte in mcp.json.
             mcp.CHIAVI = dict(agente.AMBIENTE_CASSAFORTE)
@@ -1545,7 +1547,7 @@ def avvia(client, memoria):
                     print(u"\n[dal mondo] {}".format(testo))
                     try:
                         if MONDO.personale:
-                            gestisci_messaggio_personale(client, memoria, testo, storico)
+                            gestisci_messaggio_personale(client, memoria, testo, storico, ripresa)
                         else:
                             gestisci_messaggio(client, memoria, testo, storico, ripresa)
                         ripresa = None
@@ -1565,8 +1567,14 @@ def avvia(client, memoria):
                         print(u"\n[dal mondo] ripresa sessione: {}".format(s["titolo"]))
 
                 elif tipo == "agente_personale":
-                    storico = []          # cambia chi comanda: si riparte puliti
-                    ripresa = None
+                    # Lo storico grezzo non si puo' travasare - i due comandanti
+                    # hanno strumenti diversi e le chiamate dell'uno non tornano
+                    # all'altro - ma buttarlo via e basta era peggio: il lavoro
+                    # in corso spariva dalla memoria di chi prendeva il comando,
+                    # e a un "continua" rispondeva che non c'era niente da
+                    # continuare. Adesso il nuovo comandante riceve il riassunto.
+                    storico = []
+                    ripresa = ARCHIVIO.riassunto(MONDO.sessione) if MONDO.sessione else None
 
                 elif tipo == "nuova_sessione":
                     MONDO.chiudi_sessione("completata")
@@ -1748,8 +1756,12 @@ TOOLS_PERSONALE = agente.TOOLS + [
 ]
 
 
-def _prompt_personale(memoria, skills):
+def _prompt_personale(memoria, skills, ripresa=None):
     base = agente.costruisci_system_prompt(memoria, skills)
+    if ripresa:
+        base += u"\n\n--- IL LAVORO GIA' IN CORSO ---\n" + ripresa + (
+            u"\n\nQuesto lavoro continua: se ti dice 'continua' o simili, "
+            u"riprendi DA QUI, non ricominciare e non proporre altro.\n")
     return base + u"\n".join([
         u"",
         u"",
@@ -1764,7 +1776,7 @@ def _prompt_personale(memoria, skills):
     ] + _righe_chiavi() + competenze.righe_per_prompt(COMPETENZE) + mcp.righe_per_prompt())
 
 
-def gestisci_messaggio_personale(client, memoria, testo_utente, storico):
+def gestisci_messaggio_personale(client, memoria, testo_utente, storico, ripresa=None):
     """Un giro con il tuo agente personale al comando."""
     m = MONDO
     carica_chiavi()
@@ -1780,7 +1792,7 @@ def gestisci_messaggio_personale(client, memoria, testo_utente, storico):
     m.boss_stato("idle", None)
 
     skills = agente.elenca_skills()
-    system = _prompt_personale(memoria, skills)
+    system = _prompt_personale(memoria, skills, ripresa)
     storico.append({"role": "user", "content": testo_utente})
     passi = 0
 

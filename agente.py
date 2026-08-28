@@ -297,6 +297,32 @@ def scrivi_log(comando, return_code, distruttivo, confermato):
 # Esecuzione comandi in PowerShell
 # ---------------------------------------------------------------------------
 
+def nascondi_segreti(testo):
+    """Toglie dal testo qualunque valore della Cassaforte.
+
+    L'idea era che una chiave usata come $env:NOME non comparisse mai. Non
+    basta: PowerShell, quando un comando e' scritto male, rimanda indietro la
+    riga GIA' ESPANSA - e la chiave finisce nel terminale, nel log e sotto gli
+    occhi di chiunque guardi lo schermo. E' successo davvero con la chiave
+    Anthropic. Quindi ogni riga che esce da un comando passa da qui prima di
+    essere stampata, mandata al modello o scritta da qualche parte.
+    """
+    if not testo:
+        return testo
+    for nome, valore in AMBIENTE_CASSAFORTE.items():
+        v = (valore or "").strip()
+        if len(v) >= 8 and v in testo:
+            testo = testo.replace(v, u"\u00ab{} nascosta\u00bb".format(nome))
+    return testo
+
+
+def _ripulisci(esito):
+    """Un solo punto di passaggio: nessun esito esce senza essere ripulito."""
+    esito["stdout"] = nascondi_segreti(esito.get("stdout", ""))
+    esito["stderr"] = nascondi_segreti(esito.get("stderr", ""))
+    return esito
+
+
 def esegui_powershell(comando):
     """
     Esegue un comando tramite PowerShell catturando stdout, stderr e return code.
@@ -324,15 +350,15 @@ def esegui_powershell(comando):
 
     try:
         stdout, stderr = proc.communicate(timeout=TIMEOUT_COMANDO)
-        return {"stdout": stdout or "", "stderr": stderr or "", "returncode": proc.returncode}
+        return _ripulisci({"stdout": stdout or "", "stderr": stderr or "", "returncode": proc.returncode})
     except subprocess.TimeoutExpired:
         proc.kill()
         stdout, stderr = proc.communicate()
-        return {
+        return _ripulisci({
             "stdout": stdout or "",
             "stderr": (stderr or "") + "\n[TIMEOUT] Comando terminato dopo {}s.".format(TIMEOUT_COMANDO),
             "returncode": -1,
-        }
+        })
 
 
 # Se impostato (dalla modalita' MONDO), le conferme dei comandi distruttivi
@@ -369,7 +395,9 @@ def gestisci_esecuzione(comando):
             "saltato": True,
         }
 
-    print(u"\n>> COMANDO PROPOSTO:\n   {}".format(comando))
+    # anche il comando passa dal filtro: se il modello ci scrive dentro una
+    # chiave per sbaglio, non deve finire sullo schermo
+    print(u"\n>> COMANDO PROPOSTO:\n   {}".format(nascondi_segreti(comando)))
     distruttivo, motivo = classifica_comando(comando)
 
     confermato = False
@@ -508,11 +536,11 @@ def esegui_skill(nome_file):
             encoding="utf-8", errors="replace",
         )
         stdout, stderr = proc.communicate(timeout=TIMEOUT_COMANDO)
-        esito = {"stdout": stdout or "", "stderr": stderr or "", "returncode": proc.returncode, "saltato": False}
+        esito = _ripulisci({"stdout": stdout or "", "stderr": stderr or "", "returncode": proc.returncode, "saltato": False})
     except subprocess.TimeoutExpired:
         proc.kill()
         stdout, stderr = proc.communicate()
-        esito = {"stdout": stdout or "", "stderr": (stderr or "") + "\n[TIMEOUT]", "returncode": -1, "saltato": False}
+        esito = _ripulisci({"stdout": stdout or "", "stderr": (stderr or "") + "\n[TIMEOUT]", "returncode": -1, "saltato": False})
 
     scrivi_log("SKILL:" + nome_file, esito["returncode"], distruttivo, confermato)
     print(u"   RC={}".format(esito["returncode"]))

@@ -111,9 +111,13 @@ export class Cassaforte {
       corretto = { da: n, a: rico.nome, etichetta: rico.etichetta };
     }
 
+    // Uno spazio o un a-capo incollati insieme alla chiave sono invisibili qui
+    // e mortali la': HubSpot rispondeva 401 a un token perfettamente valido
+    // perche' aveva uno spazio davanti (45 caratteri invece di 44). Chi incolla
+    // non puo' accorgersene, quindi la ripulitura la fa la cassaforte.
     const prima = this.segreti[finale];
     this.segreti[finale] = {
-      valore: String(valore),
+      valore: String(valore).trim(),
       tipo: opz.tipo || (prima && prima.tipo) || "api",
       note: opz.note !== undefined ? opz.note : (prima ? prima.note : ""),
       creato: prima ? prima.creato : new Date().toISOString(),
@@ -162,14 +166,14 @@ export class Cassaforte {
     const s = this.segreti[normalizzaNome(nome)];
     if (!s) return null;
     s.usato = new Date().toISOString();
-    return s.valore;
+    return String(s.valore).trim();   // vale anche per le chiavi salvate prima
   }
 
   /** Tutte le coppie nome→valore, per l'ambiente dei comandi. */
   ambiente() {
     if (!this.sbloccata) return {};
     const out = {};
-    for (const [n, s] of Object.entries(this.segreti)) out[n] = s.valore;
+    for (const [n, s] of Object.entries(this.segreti)) out[n] = String(s.valore).trim();
     return out;
   }
 
