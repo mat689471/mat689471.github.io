@@ -593,7 +593,9 @@ def esegui_obiettivo(client, system_prompt, memoria, obiettivo):
     while True:
         risposta = client.messages.create(
             model=MODELLO,
-            max_tokens=2048,
+            # 2048 tagliava a meta' documenti e sequenze di comandi, e il
+            # troncamento veniva scambiato per "ha finito".
+            max_tokens=16000,
             system=system_prompt,
             tools=TOOLS,
             messages=messaggi,
@@ -603,6 +605,13 @@ def esegui_obiettivo(client, system_prompt, memoria, obiettivo):
         for blocco in risposta.content:
             if blocco.type == "text" and blocco.text.strip():
                 print(u"\n[agente] {}".format(blocco.text.strip()))
+
+        if risposta.stop_reason == "max_tokens":
+            print(u"\n[agente] la risposta era troppo lunga: la rifaccio piu' corta")
+            messaggi.append({"role": "user", "content":
+                u"La tua risposta e' stata tagliata perche' troppo lunga. "
+                u"Rifalla piu' corta: poche righe e poi il comando."})
+            continue
 
         messaggi.append({"role": "assistant", "content": risposta.content})
 

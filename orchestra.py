@@ -1060,13 +1060,20 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
         passi += 1
         try:
             risposta = client.messages.create(
-                model=agente.MODELLO, max_tokens=2048,
+                model=agente.MODELLO, max_tokens=16000,
                 system=_prompt_specialista(ag),
                 tools=TOOLS_SPECIALISTA, messages=messaggi,
             )
         except Exception as e:
             riepilogo = u"(non ho potuto proseguire: {})".format(spiega_errore(e))
             break
+        if risposta.stop_reason == "max_tokens":
+            messaggi.append({"role": "user", "content":
+                u"La tua risposta e' stata tagliata perche' troppo lunga. "
+                u"Se devi scrivere un documento o del codice usa 'scrivi_file' "
+                u"invece di metterlo tutto nel messaggio, poi riassumi in poche righe."})
+            continue
+
         messaggi.append({"role": "assistant", "content": risposta.content})
 
         if risposta.stop_reason != "tool_use":
@@ -1383,18 +1390,33 @@ def gestisci_messaggio(client, memoria, testo_utente, storico, ripresa=None):
         passi += 1
         try:
             risposta = client.messages.create(
-                model=agente.MODELLO, max_tokens=2048, system=system,
+                model=agente.MODELLO, max_tokens=16000, system=system,
                 tools=TOOLS_ORCHESTRATORE, messages=storico,
             )
         except Exception as e:
             m.dico(u"Orchestratore", spiega_errore(e), "boss", "#ff9f6b")
             break
+        # Troncato a meta': NON e' una risposta finita. La parte tagliata puo'
+        # contenere un incarico incompleto, quindi il turno mozzo si butta e
+        # si richiede lo stesso lavoro chiedendo di essere piu' asciutti.
+        if risposta.stop_reason == "max_tokens":
+            m.pensa(u"la risposta era troppo lunga: la rifaccio piu' corta")
+            storico.append({"role": "user", "content":
+                u"La tua risposta e' stata tagliata perche' troppo lunga. "
+                u"Rifalla: scrivi poche righe di testo e poi CHIAMA SUBITO gli "
+                u"strumenti. Non descrivere quello che stai per fare: fallo."})
+            continue
+
         storico.append({"role": "assistant", "content": risposta.content})
 
         if risposta.stop_reason != "tool_use":
             testo = u" ".join([b.text for b in risposta.content if b.type == "text"]).strip()
-            if testo:
-                m.dico(u"Orchestratore", testo, "boss", "#f5b942")
+            # Un turno che finisce in silenzio lascia il mondo fermo senza che
+            # nessuno sappia perche': meglio dirlo che sembrare bloccati.
+            m.dico(u"Orchestratore",
+                   testo or u"Ho chiuso il turno senza produrre nulla. Riscrivimi "
+                            u"cosa vuoi che faccia e riparto.",
+                   "boss", "#f5b942" if testo else "#ff9f6b")
             break
 
         blocchi = [b for b in risposta.content if b.type == "tool_use"]
@@ -1475,6 +1497,12 @@ def gestisci_messaggio(client, memoria, testo_utente, storico, ripresa=None):
         risultati.sort(key=lambda r: ordine.get(r["tool_use_id"], 99))
         storico.append({"role": "user", "content": risultati})
 
+    if passi >= MAX_PASSI_ORCHESTRATORE:
+        # Prima finiva il giro in silenzio e il mondo restava immobile.
+        m.dico(u"Orchestratore",
+               u"Ho raggiunto il numero massimo di passi per questo giro. "
+               u"Scrivimi «continua» e riprendo da dove sono arrivato.",
+               "boss", "#ff9f6b")
     m.boss_stato("idle", None)
     m.pensa(None)
     m.chiudi_sessione("completata")
@@ -1800,12 +1828,19 @@ def gestisci_messaggio_personale(client, memoria, testo_utente, storico, ripresa
         passi += 1
         try:
             risposta = client.messages.create(
-                model=agente.MODELLO, max_tokens=2048, system=system,
+                model=agente.MODELLO, max_tokens=16000, system=system,
                 tools=TOOLS_PERSONALE, messages=storico,
             )
         except Exception as e:
             m.dico(u"Il tuo Agente", spiega_errore(e), "agent", ag["color"])
             break
+
+        if risposta.stop_reason == "max_tokens":
+            storico.append({"role": "user", "content":
+                u"La tua risposta e' stata tagliata perche' troppo lunga. "
+                u"Rifalla: poche righe, e per i testi lunghi usa 'scrivi_file'."})
+            continue
+
         storico.append({"role": "assistant", "content": risposta.content})
 
         testo = u" ".join([b.text for b in risposta.content if b.type == "text"]).strip()
