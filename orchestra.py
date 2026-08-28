@@ -31,6 +31,7 @@ Scambio file con la pagina web:
 import io
 import os
 import json
+import hashlib
 import time
 import uuid
 import threading
@@ -1090,6 +1091,48 @@ TOOLS_SPECIALISTA = [
 COMPETENZE = []
 
 
+LIMITE_ESITO = 6000     # caratteri di output che tornano al modello
+
+
+def _confeziona_esito(esito, cmd, gia_visti, passo):
+    """Prepara l'esito di un comando prima di rimandarlo al modello.
+
+    Due sprechi, visti su una sessione vera che ha continuato a girare in tondo
+    dopo aver gia' finito il lavoro:
+
+    1) LO STESSO COMANDO RIESEGUITO. L'agente rilegge lo stesso file cinque,
+       sei volte. Ogni lettura entra nella conversazione e da quel momento
+       viene rispedita a ogni passo successivo: un file da 25 KB letto tre
+       volte si paga molto piu' di tre volte. Adesso, se il comando e' identico
+       e l'esito pure, torna una riga sola che dice quando l'aveva gia' fatto.
+
+    2) IL TAGLIO SILENZIOSO. Oltre i 6000 caratteri l'output veniva troncato
+       senza dirlo, e l'agente riprovava con varianti dello stesso comando
+       (Substring, IndexOf, Select-Object -Skip...) cercando la parte mancante:
+       e' esattamente il giro in tondo che si vede nel log. Adesso il taglio si
+       vede, e gli si dice cosa usare al posto di riprovare.
+    """
+    testo = json.dumps(esito, ensure_ascii=False)
+    firma = hashlib.sha1(u" ".join((cmd or u"").split()).encode("utf-8")).hexdigest()
+    prima = gia_visti.get(firma)
+    if prima is not None and prima["testo"] == testo:
+        return json.dumps({
+            u"gia_eseguito_al_passo": prima["passo"],
+            u"nota": u"Hai gia' eseguito questo identico comando e l'esito e' lo "
+                     u"stesso. Non ripeterlo: usa quello che hai gia' letto e "
+                     u"vai avanti. Se sei bloccato, chiama 'consegna' e spiega "
+                     u"a che punto sei.",
+        }, ensure_ascii=False)
+    gia_visti[firma] = {"passo": passo, "testo": testo}
+    if len(testo) <= LIMITE_ESITO:
+        return testo
+    return testo[:LIMITE_ESITO] + (
+        u"\n\n[TAGLIATO: ti mostro {} caratteri su {}. NON rieseguire lo stesso "
+        u"comando sperando di vedere il resto. Per un file usa 'leggi_file'; "
+        u"per un elenco lungo filtra o conta invece di stamparlo tutto.]"
+    ).format(LIMITE_ESITO, len(testo))
+
+
 def _prompt_specialista(ag):
     return u"\n".join([
         u"Sei '{}', agente specialista dentro l'ecosistema di lavoro dell'utente.".format(ag["name"]),
@@ -1132,6 +1175,14 @@ def _prompt_specialista(ag):
       u"raccontare. Se un servizio esterno te lo restituisce come indirizzo web, "
       u"scaricalo prima in 'lavori', altrimenti non lo vede.",
         u"Quando hai finito chiama 'consegna': sara' l'Orchestratore a parlare con l'utente.",
+        u"NON RILEGGERE QUELLO CHE HAI GIA' LETTO. Ogni comando che esegui resta "
+        u"nella conversazione e viene rispedito a ogni passo successivo: rileggere "
+        u"lo stesso file tre volte lo fai pagare all'utente molte piu' di tre volte. "
+        u"Se un output ti torna [TAGLIATO], non riprovare con una variante dello "
+        u"stesso comando: usa 'leggi_file', oppure filtra.",
+        u"APPENA IL RISULTATO C'E', CONSEGNA. Se la prova che dovevi far passare "
+        u"passa, il lavoro e' finito: chiama 'consegna' e basta. Continuare a "
+        u"ricontrollare non aggiunge niente e costa a ogni giro.",
         u"Sii concreto e sintetico. Non chiedere permessi: ci pensa il sistema.",
         u"",
         u"INSISTI FINO AL RISULTATO. Un comando che fallisce non e' la fine del lavoro:",
@@ -1165,6 +1216,7 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
     # Costruito una volta sola: se cambiasse anche di un byte fra un passo e
     # l'altro, la cache non varrebbe piu' niente.
     sistema = _prompt_specialista(ag)
+    gia_visti = {}      # comandi gia' eseguiti in questo incarico
 
     while passi < MAX_PASSI_AGENTE:
         passi += 1
@@ -1216,7 +1268,7 @@ def esegui_specialista(client, ruolo, istruzioni, nome=None, specialita=None, pr
                     m.evento(nome_ag, u"$ " + cmd[:70], colore)
                     with _lock_esecuzione:      # un comando di sistema per volta
                         esito = agente.gestisci_esecuzione(cmd)
-                    contenuto = json.dumps(esito, ensure_ascii=False)[:6000]
+                    contenuto = _confeziona_esito(esito, cmd, gia_visti, passi)
 
                 elif b.name == "avanzamento":
                     p = max(0.0, min(100.0, float(args.get("percentuale", 0)))) / 100.0
@@ -1968,6 +2020,7 @@ def gestisci_messaggio_personale(client, memoria, testo_utente, storico, ripresa
 
     skills = agente.elenca_skills()
     system = _prompt_personale(memoria, skills, ripresa)
+    gia_visti = {}      # comandi gia' eseguiti in questo giro
     storico.append({"role": "user", "content": testo_utente})
     passi = 0
 
@@ -2018,7 +2071,7 @@ def gestisci_messaggio_personale(client, memoria, testo_utente, storico, ripresa
                     m.evento(u"Il tuo Agente", u"$ " + cmd[:70], ag["color"])
                     with _lock_esecuzione:
                         esito = agente.gestisci_esecuzione(cmd)
-                    contenuto = json.dumps(esito, ensure_ascii=False)[:6000]
+                    contenuto = _confeziona_esito(esito, cmd, gia_visti, passi)
 
                 elif b.name == "affida_allo_sciame":
                     compito = args.get("compito", "")
