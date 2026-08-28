@@ -207,6 +207,30 @@ restano i precedenti.
 `lavori/` è l'unica cartella che il mondo mostra: una consegna che punta altrove
 viene rifiutata, così un agente non può pubblicare per sbaglio un file privato.
 
+## Niente si perde per strada
+
+**Il codice.** Ogni modifica finisce nel repository, e a ogni pubblicazione un
+controllo automatico verifica che l'archivio contenga ancora tutti i file di
+`MANIFESTO.txt` e che il codice si legga. Se qualcosa sparisce o si rompe, su
+GitHub compare una croce rossa invece di passare inosservato. Lo puoi lanciare
+anche tu:
+
+```
+node controlla.mjs
+```
+
+Serve perche' un file cancellato per sbaglio non da' nessun fastidio a chi l'ha
+cancellato — sul suo computer c'e' ancora — e il buco si scopre solo quando
+qualcun altro scarica lo zip. È già successo una volta.
+
+**I tuoi dati.** Doppio clic su **`SALVA-I-MIEI-DATI.bat`**: copia `dati/`,
+`lavori/` e `avatar/` in *Documenti → Ecosistema-salvataggi*, in una cartella
+con la data. Fallo prima di scaricare un archivio nuovo, e non perdi né le
+credenziali né il lavoro fatto.
+
+Copia anche i file nascosti, `.masterkey` compreso: senza quello la cassaforte
+cifrata non si riapre.
+
 ## I tuoi dati restano tuoi
 
 Le cartelle `dati/` (chiavi API, conti, contabilità) e `avatar/` (i modelli 3D

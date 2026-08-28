@@ -1,0 +1,24 @@
+# Gira a ogni pubblicazione: se un file sparisce dall'archivio o il codice si
+# rompe, qui compare una croce rossa. Serve perche' un file cancellato per
+# sbaglio non da' nessun fastidio a chi l'ha cancellato - sul suo computer c'e'
+# ancora - e il buco si scopre solo quando qualcun altro scarica lo zip.
+name: L'archivio e' completo?
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:      # si puo' lanciare anche a mano dalla scheda Actions
+
+jobs:
+  controlla:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Controlla file e codice
+        run: node controlla.mjs

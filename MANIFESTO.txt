@@ -1,0 +1,31 @@
+# MANIFESTO - i file che DEVONO stare nell'archivio.
+# Se uno sparisce, 'node controlla.mjs' se ne accorge e la pubblicazione fallisce.
+# Quando aggiungi un file nuovo al progetto, aggiungi anche la sua riga qui.
+
+.github/workflows/controlla.yml
+AVVIA.bat
+MANIFESTO.txt
+README.md
+SALVA-I-MIEI-DATI.bat
+agente.py
+avatar.py
+avatar/LEGGIMI.md
+competenze.py
+controlla.mjs
+lavori/LEGGIMI.md
+mcp.json
+mcp.py
+mondo/AVVIA-WINDOWS.bat
+mondo/README.md
+mondo/account.mjs
+mondo/avatar-nucleus.svg
+mondo/avvia.mjs
+mondo/bridge/ruflo-bridge.mjs
+mondo/gestione.html
+mondo/index.html
+mondo/ledger.mjs
+mondo/pagamenti.mjs
+mondo/state.example.json
+mondo/strumenti.mjs
+mondo/vault.mjs
+orchestra.py
