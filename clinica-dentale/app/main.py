@@ -91,6 +91,47 @@ def _cliente_o_errore(slug):
 # ---------------------------------------------------------------------------
 # Il giro di un paziente
 # ---------------------------------------------------------------------------
+def _scrivi_crm(cliente, lead_id, lead, qual):
+    """Scrive contatto e trattativa sul CRM DI QUESTO cliente.
+
+    Vale per tutti i pazienti, anche per quelli che passano a un operatore.
+    Prima non era cosi': chi veniva passato a una persona non arrivava mai al
+    CRM. Nel dentale erano due casi; in medicina estetica sono quasi TUTTI i
+    casi che valgono qualcosa - chirurgia e iniettivi passano sempre da una
+    persona - quindi i contatti piu' importanti sparivano proprio da dove il
+    cliente li conta.
+
+    Un contatto pagato va registrato comunque: che poi lo chiami una persona
+    invece di un programma non lo rende meno reale. Nella trattativa restano
+    urgenza e serve_umano, cosi' si vede subito che e' da richiamare.
+
+    Se il CRM di questo cliente rifiuta, il paziente non si perde: finisce
+    nell'archivio locale marcato da sincronizzare, e gli altri clienti non se
+    ne accorgono nemmeno.
+    """
+    crm, nota = scegli_crm(cliente)
+    passo(lead_id, "crm", nota, cliente=cliente.slug)
+    try:
+        c = crm.contatto(lead)
+        d = crm.deal(c["contact_id"], lead, qual)
+        esito = {"contact_id": c["contact_id"], "deal_id": d["deal_id"],
+                 "fonte": c["fonte"]}
+        passo(lead_id, "crm scritto", u"fonte={} contatto={} trattativa={}".format(
+            c["fonte"], c["contact_id"], d["deal_id"]), cliente=cliente.slug)
+    except Exception as e:
+        passo(lead_id, "crm fallito", u"{}: {} -> scrivo in locale".format(
+            type(e).__name__, e), "WARNING", cliente=cliente.slug)
+        from app.crm.sqlite_crm import CrmLocale
+        riserva = CrmLocale(cliente.slug, u"{}: {}".format(type(e).__name__, e))
+        c = riserva.contatto(lead)
+        d = riserva.deal(c["contact_id"], lead, qual)
+        esito = {"contact_id": c["contact_id"], "deal_id": d["deal_id"],
+                 "fonte": c["fonte"], "da_sincronizzare": True}
+    db.aggiorna_lead(lead_id, crm_contact_id=c["contact_id"],
+                     crm_deal_id=d["deal_id"])
+    return esito
+
+
 def _handoff(cliente, lead_id, qual, motivo=None):
     """Ferma l'automazione e mette il paziente in mano a un operatore DI QUESTO
     studio. La coda e' sua: nessun altro cliente la vede."""
@@ -111,7 +152,8 @@ def _handoff(cliente, lead_id, qual, motivo=None):
     _canale(cliente).invia(lead.get("telefono") or lead.get("email") or str(lead_id),
                            cortesia)
     db.aggiungi_messaggio(lead_id, "assistant", cortesia)
-    return {"stato": "da_operatore", "in_coda": True, "crm": None,
+    esito_crm = _scrivi_crm(cliente, lead_id, lead, qual)
+    return {"stato": "da_operatore", "in_coda": True, "crm": esito_crm,
             "risposta": cortesia}
 
 
@@ -157,31 +199,7 @@ def _automatico(cliente, lead_id, lead, qual):
     db.aggiungi_messaggio(lead_id, "assistant", testo,
                           json.dumps(qual, ensure_ascii=False))
 
-    crm, nota = scegli_crm(cliente)
-    passo(lead_id, "crm", nota, cliente=cliente.slug)
-    esito_crm = None
-    try:
-        c = crm.contatto(lead)
-        d = crm.deal(c["contact_id"], lead, qual)
-        esito_crm = {"contact_id": c["contact_id"], "deal_id": d["deal_id"],
-                     "fonte": c["fonte"]}
-        db.aggiorna_lead(lead_id, crm_contact_id=c["contact_id"],
-                         crm_deal_id=d["deal_id"])
-        passo(lead_id, "crm scritto", u"fonte={} contatto={} trattativa={}".format(
-            c["fonte"], c["contact_id"], d["deal_id"]), cliente=cliente.slug)
-    except Exception as e:
-        # HubSpot di QUESTO studio ha rifiutato: il paziente non si perde, e
-        # gli altri studi non se ne accorgono nemmeno.
-        passo(lead_id, "crm fallito", u"{}: {} -> scrivo in locale".format(
-            type(e).__name__, e), "WARNING", cliente=cliente.slug)
-        from app.crm.sqlite_crm import CrmLocale
-        riserva = CrmLocale(cliente.slug, u"{}: {}".format(type(e).__name__, e))
-        c = riserva.contatto(lead)
-        d = riserva.deal(c["contact_id"], lead, qual)
-        esito_crm = {"contact_id": c["contact_id"], "deal_id": d["deal_id"],
-                     "fonte": c["fonte"], "da_sincronizzare": True}
-        db.aggiorna_lead(lead_id, crm_contact_id=c["contact_id"],
-                         crm_deal_id=d["deal_id"])
+    esito_crm = _scrivi_crm(cliente, lead_id, lead, qual)
 
     db.aggiorna_lead(lead_id, stato=stato)
     return {"stato": stato, "in_coda": False, "crm": esito_crm, "risposta": testo}

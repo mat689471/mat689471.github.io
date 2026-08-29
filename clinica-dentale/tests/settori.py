@@ -16,8 +16,18 @@ clienti.
 """
 import os
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from tests.finti_servizi import accendi          # noqa: E402
+
+INDIRIZZO, SPEGNI = accendi()
+os.environ["ANTHROPIC_BASE_URL"] = INDIRIZZO
+os.environ["ANTHROPIC_API_KEY"] = "prova-settori"
+os.environ["HUBSPOT_BASE"] = INDIRIZZO
+os.environ["HUBSPOT_TOKEN_ESTETICAAURORA"] = "TOKEN-AURORA"
+os.environ["DB_PATH"] = os.path.join(tempfile.mkdtemp(prefix="prova-settori-"), "p.db")
 
 from app import agent, clienti, settori          # noqa: E402
 
@@ -122,7 +132,30 @@ def principale():
     prova("un cliente con un settore sbagliato non si carica", ok,
           "meglio non partire che partire col mestiere sbagliato")
 
-    # --- 6. la vetrina ha i testi di tutti e due ---------------------------
+    # --- 6. anche chi passa a una persona finisce nel CRM ------------------
+    print(RIGA)
+    print("  Il contatto che vale di piu' e' quello che passa a una persona.")
+    import json as _json
+    from fastapi.testclient import TestClient
+
+    if True:
+        from app.main import app as applicazione
+        C = TestClient(applicazione)
+        richiesta = {"nome": "Martina Greco", "telefono": "+39 346 1122556",
+                     "email": "martina@example.com", "consenso": True,
+                     "messaggio": "Vorrei un preventivo per una rinoplastica"}
+        risposta = C.post("/webhook/lead/esteticaaurora", json=richiesta).json()
+        prova("una rinoplastica passa a una persona",
+              risposta["stato"] == "da_operatore" and risposta["in_coda"],
+              "stato=%s" % risposta["stato"])
+        prova("...e finisce lo stesso sul CRM del suo cliente",
+              bool(risposta.get("crm")) and risposta["crm"].get("contact_id"),
+              "crm=%s" % _json.dumps(risposta.get("crm"), ensure_ascii=False))
+        prova("il CRM usato e' quello di QUEL cliente",
+              (risposta.get("crm") or {}).get("fonte") == "hubspot",
+              "fonte=%s" % (risposta.get("crm") or {}).get("fonte"))
+
+    # --- 7. la vetrina ha i testi di tutti e due ---------------------------
     print(RIGA)
     import re
     with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
