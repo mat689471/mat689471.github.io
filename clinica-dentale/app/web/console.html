@@ -213,8 +213,26 @@ document.addEventListener("click", e => {
   if(!b) return;
   studio = b.dataset.studio;
   try{ localStorage.setItem("studio", studio); }catch(err){}
-  disegnaStudi(); aggiorna();
+  disegnaStudi(); aggiornaProva(); aggiorna();
 });
+
+/* Il messaggio d'esempio del riquadro di prova deve parlare il mestiere del
+   cliente scelto. Cliccare «Clinica Estetica Aurora» e leggere «una pulizia
+   dei denti» e' la figuraccia che si fa davanti al cliente, in call.
+   Si riscrive SOLO se nessuno l'ha toccato: quello che scrive una persona
+   non si cancella mai. */
+const PROVE = {
+  dentale: "Buongiorno, vorrei prenotare una pulizia dei denti, preferibilmente di pomeriggio",
+  estetica: "Buonasera, vorrei informazioni per l'epilazione laser, di pomeriggio se possibile"
+};
+function aggiornaProva(){
+  const casella = $("#pMsg");
+  if(!casella) return;
+  const nostri = Object.values(PROVE);
+  if(!nostri.includes(casella.value.trim())) return;   // l'ha scritto una persona
+  const uno = elencoStudi.find(c => c.slug === studio) || elencoStudi[0] || {};
+  casella.value = PROVE[uno.settore] || PROVE.dentale;
+}
 
 const nomeStudio = slug => (elencoStudi.find(c => c.slug === slug) || {}).nome || slug;
 const targaStudio = slug => (studio || !slug) ? ""
@@ -387,7 +405,7 @@ async function aggiorna(){
   try{
     const d = await (await fetch("/api/stato" +
       (studio ? "?cliente=" + encodeURIComponent(studio) : ""))).json();
-    if(d.clienti){ elencoStudi = d.clienti; disegnaStudi(); }
+    if(d.clienti){ elencoStudi = d.clienti; disegnaStudi(); aggiornaProva(); }
     disegnaNumeri(d.numeri); disegnaCoda(d.coda);
     disegnaPazienti(d.pazienti); disegnaAgenda(d.agenda);
     $("#spia").className = "spia";
@@ -410,7 +428,8 @@ async function aggiorna(){
     const senzaCrm = (d.clienti||[]).filter(c => !c.hubspot).length;
     $("#spia").innerHTML = "<i></i> collegato" +
       (d.config && !d.config.anthropic ? " · manca la chiave Anthropic" : "") +
-      (senzaCrm ? " · " + senzaCrm + " studi senza CRM" : "");
+      (senzaCrm ? " · " + senzaCrm +
+        (senzaCrm === 1 ? " cliente senza CRM" : " clienti senza CRM") : "");
   }catch(e){
     $("#spia").className = "spia giu";
     $("#spia").innerHTML = "<i></i> server non raggiungibile";
