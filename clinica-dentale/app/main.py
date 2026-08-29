@@ -25,7 +25,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
-from app import agent, clienti, config, db, sicurezza
+from app import agent, clienti, config, db, settori, sicurezza
 from app.calendar.sqlite_cal import CalendarioSqlite
 from app.channels.console import CanaleConsole
 from app.crm import scegli_crm
@@ -278,15 +278,27 @@ def cruscotto():
 
 
 @app.get("/vetrina", response_class=HTMLResponse)
-def vetrina():
-    """La pagina da far vedere al titolare dello studio.
+def vetrina(settore: str | None = None):
+    """La pagina da far vedere al titolare, nel SUO mestiere.
 
     Non chiede la chiave e non mostra nemmeno un paziente: dentro non c'e' un
     dato vero, solo il racconto di cosa fa il sistema. Si puo' mandare per
     email o aprire davanti a un cliente senza pensarci.
+
+    `?settore=estetica` cambia i testi: a una clinica di chirurgia estetica non
+    si manda una pagina che parla di otturazioni. La pagina e' una sola - il
+    mestiere e' un dato, come per l'agente.
     """
+    try:
+        scelto = settori.per_chiave(settore)
+    except settori.SettoreSconosciuto as e:
+        return HTMLResponse(u"<p style='font:16px system-ui;padding:40px'>%s</p>" % e,
+                            status_code=404)
     with open(VETRINA, encoding="utf-8") as f:
-        return f.read()
+        pagina = f.read()
+    for chiave, valore in scelto.vetrina.items():
+        pagina = pagina.replace("{{%s}}" % chiave, valore)
+    return pagina
 
 
 @app.get("/api/clienti")

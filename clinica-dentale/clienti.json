@@ -1,5 +1,5 @@
 {
-  "_nota": "I clienti dello studio. NESSUN SEGRETO QUI DENTRO: di ogni token si scrive solo il NOME della variabile d'ambiente, mai il valore. Per aggiungerne uno, copia un blocco e cambia i campi (vedi LEGGIMI.md).",
+  "_nota": "I clienti. Ognuno ha un \"settore\" (dentale, estetica): decide come parla il sistema e quali richieste devono passare per forza da una persona; se manca vale dentale. NESSUN SEGRETO QUI DENTRO: di ogni token si scrive solo il NOME della variabile d'ambiente, mai il valore. Per aggiungerne uno, copia un blocco e cambia i campi (vedi LEGGIMI.md).",
   "predefinito": "demo",
   "clienti": [
     {
@@ -37,6 +37,21 @@
       "prima_visita_gratuita": false,
       "canale": {"tipo": "console"},
       "agenda": {"ore": [10, 17], "giorni": 5, "durata_min": 30, "studio": "Bianchi - studio 2"}
+    },
+    {
+      "slug": "esteticaaurora",
+      "nome": "Clinica Estetica Aurora",
+      "settore": "estetica",
+      "hubspot_token_env": "HUBSPOT_TOKEN_ESTETICAAURORA",
+      "orari": "lunedi-venerdi 10:00-19:00, sabato 10:00-14:00",
+      "indirizzo": "viale Monza 4, Milano",
+      "trattamenti": ["consulenza estetica", "epilazione laser", "laser viso",
+                      "pressoterapia", "peeling", "filler", "tossina botulinica",
+                      "biorivitalizzazione", "rinoplastica", "mastoplastica",
+                      "liposuzione", "blefaroplastica"],
+      "prima_visita_gratuita": false,
+      "canale": {"tipo": "console"},
+      "agenda": {"ore": [10, 15, 18], "giorni": 5, "durata_min": 60, "studio": "Aurora - sala consulenze"}
     }
   ]
 }

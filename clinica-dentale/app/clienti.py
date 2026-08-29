@@ -14,7 +14,7 @@ o fra i secret del provider quando e' online.
 import json
 import os
 
-from app import config
+from app import config, settori
 
 FILE = os.environ.get("CLIENTI_JSON", "").strip() or \
     os.path.join(config.RADICE, "clienti.json")
@@ -30,6 +30,12 @@ class ConfigCliente(object):
     def __init__(self, dati):
         self.slug = str(dati["slug"]).strip().lower()
         self.nome = dati.get("nome") or self.slug
+        # Il mestiere. Se manca e' dentale, com'era prima che i settori
+        # esistessero: chi aveva gia' un clienti.json non deve toccarlo.
+        # Se c'e' ma e' scritto male, si sbatte adesso: un cliente estetico
+        # servito con le regole del dentale prenoterebbe da solo un intervento.
+        self.settore = (dati.get("settore") or settori.PREDEFINITO).strip().lower()
+        settori.per_chiave(self.settore)
         self.token_env = (dati.get("hubspot_token_env") or "").strip()
         self.orari = dati.get("orari") or "lunedi-venerdi 9:00-19:00"
         self.indirizzo = dati.get("indirizzo") or ""
@@ -62,7 +68,8 @@ class ConfigCliente(object):
 
     def pubblico(self):
         """Quello che si puo' mostrare: niente segreti, solo se ci sono."""
-        return {"slug": self.slug, "nome": self.nome, "orari": self.orari,
+        return {"slug": self.slug, "nome": self.nome, "settore": self.settore,
+                "orari": self.orari,
                 "indirizzo": self.indirizzo, "trattamenti": self.trattamenti,
                 "prima_visita_gratuita": self.prima_visita_gratuita,
                 "canale": self.canale.get("tipo", "console"),
@@ -98,7 +105,12 @@ def _leggi():
     for voce in elenco:
         if not voce.get("slug"):
             raise ErroreClienti(u"un cliente e' senza 'slug' in %s" % FILE)
-        c = ConfigCliente(voce)
+        try:
+            c = ConfigCliente(voce)
+        except settori.SettoreSconosciuto as e:
+            # Meglio non partire che partire col mestiere sbagliato.
+            raise ErroreClienti(u"in %s, cliente '%s': %s"
+                                % (FILE, voce.get("slug"), e))
         if c.slug in visti:
             raise ErroreClienti(u"due clienti hanno lo stesso slug: %s" % c.slug)
         # Il controllo che salva la faccia: un token incollato nel file.

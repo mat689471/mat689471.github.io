@@ -19,6 +19,7 @@ Onestà prima di tutto, così nessuno resta deluso in demo.
 | Pezzo | Stato | Nota |
 |---|---|---|
 | Qualificazione con Claude | **REALE** | API Anthropic, formato garantito da uno strumento con schema |
+| Piu' mestieri (settori) | **REALE** | dentale ed estetica, `tests/settori.py` |
 | CRM HubSpot | **REALE** | contatti e trattative v3, uno per cliente, associazione inclusa |
 | CRM di scorta locale | **REALE** | se HubSpot cade il paziente non si perde, resta `sincronizzato=0` |
 | Isolamento fra clienti | **REALE** | dimostrato da `tests/multicliente.py` |
@@ -32,6 +33,41 @@ Onestà prima di tutto, così nessuno resta deluso in demo.
 | Cruscotto per un solo studio | **REALE** | `CONSOLE_CLIENTE=studiorossi` e vede solo lui |
 | Cancellazione dati paziente | **REALE** | sparisce con messaggi e appuntamento |
 | Vetrina online senza costi | **REALE** | `DEMO_PUBBLICA=1`: Claude e HubSpot simulati |
+
+---
+
+## Il mestiere e' un dato, non e' scritto nel codice
+
+Il sistema e' nato per studi dentistici, ma l'odontoiatria non e' piu' cucita
+dentro: ogni cliente ha un **settore**, e il settore decide tre cose.
+
+1. **Come parla** — chi sei, chi hai davanti, cosa devi capire.
+2. **Dove si ferma** — quali richieste devono passare per forza da una
+   persona. Questa lista **non passa dal modello**: la applica il codice dopo,
+   e c'e' una prova che gli passa apposta una risposta sbagliata per vedere se
+   la raddrizza.
+3. **Come si racconta** — i testi della vetrina, perche' a un chirurgo estetico
+   non si fa vedere una demo che parla di otturazioni.
+
+Oggi ce ne sono due, in `app/settori.py`:
+
+| Settore | Si ferma davanti a | Prenota da solo |
+|---|---|---|
+| `dentale` | dolore, gonfiore, trauma; impianti, ortodonzia, protesi | igiene, sbiancamento, controllo |
+| `estetica` | un problema **dopo** un trattamento; chirurgia; iniettivi (filler, tossina, fili) | laser, peeling, pressoterapia, consulenza |
+
+La differenza non e' un dettaglio: in estetica **quasi tutto e' un atto
+medico**, quindi la soglia e' molto piu' bassa. Un filler non e' una pulizia
+dei denti, e il sistema non lo prenota da solo nemmeno se il modello dice di
+si'.
+
+In `clienti.json` basta la riga `"settore": "estetica"`. Se manca vale
+`dentale`, cosi' un file gia' scritto continua a funzionare; se c'e' ma e'
+scritto male **il sistema non parte**, invece di servire una clinica estetica
+con le regole del dentista.
+
+Aggiungere un mestiere e' aggiungere una voce a `SETTORI`. Non si tocca il
+motore: ne' l'agenda, ne' il CRM, ne' l'isolamento fra clienti.
 
 ---
 

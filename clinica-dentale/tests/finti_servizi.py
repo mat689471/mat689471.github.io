@@ -31,6 +31,26 @@ SEMPLICI = {"igiene": ("pulizia", "igiene", "detartrasi", "tartaro"),
             "otturazione": ("otturazion", "carie", "buco"),
             "controllo": ("controllo", "visita", "check")}
 
+# --- lo stesso, per la medicina estetica -----------------------------------
+#
+# Qui il finto Claude legge il prompt di sistema per capire che mestiere sta
+# facendo, esattamente come lo legge quello vero. E' l'unico modo onesto di
+# simulare due settori con un solo finto servizio: se il prompt non dicesse
+# il mestiere, non lo saprebbe nemmeno il modello vero.
+
+SINTOMI_EST = ("gonfi", "dolore", "fa male", "reazione", "febbre", "infezion",
+               "livido", "brucia", "bruciore", "non si riassorbe",
+               "non si sgonfia", "asimmetr", "indurit", "prurito")
+CHIRURGIA = ("chirurg", "rinoplastica", "mastoplastica", "liposuzione",
+             "lipofilling", "blefaroplastica", "addominoplastica", "lifting",
+             "otoplastica", "protesi", "trapianto", "operarmi", "intervento")
+INIETTIVI = ("filler", "botulino", "botox", "tossina", "acido ialuronico",
+             "biorivitalizzazione", "mesoterapia", "fili di trazione", "labbra")
+SEMPLICI_EST = {"epilazione laser": ("epilazione", "laser", "depilazione"),
+                "peeling": ("peeling", "macchie", "pulizia del viso"),
+                "pressoterapia": ("pressoterapia", "cellulite", "drenaggio"),
+                "consulenza estetica": ("consulenza", "informazioni", "preventivo")}
+
 
 def _fascia(t):
     if "pomerigg" in t or "sera" in t:
@@ -40,8 +60,65 @@ def _fascia(t):
     return None
 
 
-def _decide(testo):
+def _decide_estetica(t):
+    """Il mestiere in cui quasi tutto e' un atto medico.
+
+    La soglia e' molto piu' bassa che nel dentale: si prenota da solo soltanto
+    cio' che non e' invasivo. Chirurgia e iniettivi passano da una persona, e
+    chi segnala un problema DOPO un trattamento e' la cosa piu' urgente che
+    possa arrivare - non si rassicura, si passa la mano.
+    """
+    if any(k in t for k in SINTOMI_EST):
+        return {"qualificato": True, "tipo_trattamento": "complicanza",
+                "urgenza": "emergenza", "slot_proposto": None, "serve_umano": True,
+                "risposta_bozza": u"Di questo la faccio parlare subito con il medico "
+                                  u"che l'ha seguita: la sto segnalando come prima "
+                                  u"della lista."}
+
+    if any(k in t for k in CHIRURGIA):
+        return {"qualificato": True, "tipo_trattamento": "chirurgia",
+                "urgenza": "media", "slot_proposto": _fascia(t), "serve_umano": True,
+                "risposta_bozza": u"Per un intervento la valutazione la fa il "
+                                  u"chirurgo in consulenza: le fisso un incontro."}
+
+    if any(k in t for k in INIETTIVI):
+        return {"qualificato": True, "tipo_trattamento": "iniettivo",
+                "urgenza": "media", "slot_proposto": _fascia(t), "serve_umano": True,
+                "risposta_bozza": u"E' un trattamento medico: prima serve una visita "
+                                  u"con il nostro medico estetico. Le fisso la "
+                                  u"consulenza."}
+
+    trattamento = "consulenza estetica"
+    for nome, parole in SEMPLICI_EST.items():
+        if any(k in t for k in parole):
+            trattamento = nome
+            break
+    return {"qualificato": True, "tipo_trattamento": trattamento,
+            "urgenza": "bassa", "slot_proposto": _fascia(t), "serve_umano": False,
+            "risposta_bozza": u"Buongiorno! Volentieri: le propongo un "
+                              u"appuntamento per una prima valutazione."}
+
+
+def _settore_dal_prompt(sistema):
+    """Che mestiere sta facendo, letto dal prompt di sistema.
+
+    Si confronta con la frase esatta del registro dei settori, non con una
+    parola a caso: cercare "estetica" scambiava uno studio dentistico per una
+    clinica, perche' anche il dentista parla di «estetica dentale». Una prova
+    che c'era gia' l'ha beccato subito.
+    """
+    from app import settori
+    testo = sistema or ""
+    for s in settori.SETTORI.values():
+        if s.luogo in testo:
+            return s.chiave
+    return settori.PREDEFINITO
+
+
+def _decide(testo, sistema=""):
     t = (testo or "").lower()
+    if _settore_dal_prompt(sistema) == "estetica":
+        return _decide_estetica(t)
     negato = any(n in t for n in NEGATO)
 
     # 1. Un sintomo clinico batte tutto il resto: si ferma e chiama una persona.
@@ -123,7 +200,7 @@ class _Manico(BaseHTTPRequestHandler):
                 "model": corpo.get("model", "finto"),
                 "content": [{"type": "tool_use", "id": "toolu_finto",
                              "name": "registra_qualificazione",
-                             "input": _decide(ultimo)}],
+                             "input": _decide(ultimo, corpo.get("system") or "")}],
                 "stop_reason": "tool_use", "stop_sequence": None,
                 "usage": {"input_tokens": 10, "output_tokens": 20},
             })

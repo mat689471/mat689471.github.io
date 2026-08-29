@@ -64,8 +64,13 @@ La vetrina non chiede nessuna chiave: parte e basta.
 Apri `https://clinica-vetrina.onrender.com/health`. Devi vedere:
 
 ```json
-{"ok": true, "vetrina_pubblica": true, "clienti": 3}
+{"ok": true, "vetrina_pubblica": true, "clienti": 4}
 ```
+
+I clienti sono quattro perche' la vetrina accende **due mestieri insieme**: tre
+studi dentistici e una clinica estetica. Non e' un vezzo — e' la cosa da far
+vedere a un'agenzia: settori diversi, regole diverse, un solo cruscotto, e
+nessuno che vede i pazienti dell'altro.
 
 Se `vetrina_pubblica` è `false`, manca `DEMO_PUBBLICA=1` fra le variabili:
 **non mandare il link finché non è `true`**, o stai pagando tu.
@@ -74,7 +79,8 @@ Se `vetrina_pubblica` è `false`, manca `DEMO_PUBBLICA=1` fra le variabili:
 
 | Indirizzo | A cosa serve |
 |---|---|
-| `.../vetrina` | **quello che mandi nelle email.** La pagina che spiega il problema, con l'animazione e il calcolo del mancato guadagno |
+| `.../vetrina` | **quello che mandi a uno studio dentistico.** La pagina che spiega il problema, con l'animazione e il calcolo del mancato guadagno |
+| `.../vetrina?settore=estetica` | **quello che mandi a una clinica estetica o all'agenzia che la segue.** Stessa pagina, altro mestiere: la conversazione parla di un filler gonfio invece che di un dente, e il conto parte da 2.500 € a paziente invece che da 600 |
 | `.../` | il cruscotto, da mostrare **durante una call**: si vedono i pazienti arrivare, l'urgenza che va in cima, il riquadro per far scrivere un paziente finto in diretta |
 
 ---
@@ -101,7 +107,8 @@ Un link nudo si clicca poco. Nelle bozze che stiamo preparando, la riga che
 funziona è quella che dice **cosa vedrà**, non "guarda la mia demo":
 
 > Le ho preparato una pagina che mostra cosa succede quando un paziente vi
-> scrive alle 21:47: `https://clinica-vetrina.onrender.com/vetrina`
+> scrive alle 21:47:
+> `https://clinica-vetrina.onrender.com/vetrina?settore=estetica`
 > Ci sono due minuti di lettura, e in fondo può mettere i numeri del suo
 > studio e vedere il conto.
 

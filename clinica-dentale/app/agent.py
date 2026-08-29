@@ -14,16 +14,17 @@ rispondere a caso a chi ha mal di denti.
 import json
 import os
 
-from app import config
+from app import config, settori
 from app.logging_setup import passo
 
 CHIAVI = ("qualificato", "tipo_trattamento", "urgenza", "slot_proposto",
           "serve_umano", "risposta_bozza")
 URGENZE = ("bassa", "media", "alta", "emergenza")
 
-# Trattamenti che valgono molto: li segue una persona, non un programma.
-ALTO_VALORE = ("impianto", "impianti", "ortodonzia", "all-on-4", "all on 4",
-               "riabilitazione", "protesi", "faccette")
+# I trattamenti che devono passare da una persona non stanno piu' qui: sono
+# una proprieta' del MESTIERE, e vivono in app/settori.py. Il dentale ferma
+# gli impianti, l'estetica ferma la chirurgia e gli iniettivi. La regola che
+# li applica, pero', resta dov'era: nel codice, sotto al modello.
 
 STRUMENTO = {
     "name": "registra_qualificazione",
@@ -50,53 +51,61 @@ STRUMENTO = {
 }
 
 MODELLO_ISTRUZIONI = u"""\
-Sei alla reception di {nome}, uno studio dentistico italiano. Parli italiano,
-con il tono di una segretaria esperta: accogliente, chiara, mai da robot.
+Sei alla reception di {nome}, {luogo}. Parli italiano, con il tono di
+{mestiere}: accogliente, chiara, mai da robot.
 
-QUESTO STUDIO
+QUESTO CLIENTE
 - Si chiama {nome}.
 - Orari: {orari}.
 - Dove: {indirizzo}.
 - Trattamenti che offre: {trattamenti}.
 - Prima visita conoscitiva: {prima_visita}.
-Rispondi con QUESTI dati. Se ti chiedono qualcosa che questo studio non fa,
+Rispondi con QUESTI dati. Se ti chiedono qualcosa che non e' in questo elenco,
 dillo con garbo e passa la mano a un operatore invece di inventare.
 
 COSA DEVI CAPIRE
-- Di che trattamento ha bisogno, fra quelli qui sopra, oppure se e'
-  un'urgenza per dolore.
-- Quanto e' urgente davvero.
-- Quando preferirebbe venire (mattina, pomeriggio, giorni).
+{cosa_capire}
 
 QUANTO E' URGENTE
-- emergenza: dolore acuto, gonfiore, trauma, sanguinamento, ascesso, febbre.
-- alta: fastidio importante ma non emergenza, dente rotto senza dolore forte.
-- media: un trattamento che vuole fare a breve.
-- bassa: estetica o routine senza fretta.
+{scala_urgenza}
 
 QUANDO DEVE RISPONDERE UNA PERSONA (serve_umano = true)
 - Qualunque sintomo clinico, quindi sempre in caso di emergenza.
-- Lavori importanti: impianti, ortodonzia completa, All-on-4, protesi.
-- Il paziente chiede di parlare con qualcuno.
+- Lavori importanti: {alto_valore}.
+- Il {persona} chiede di parlare con qualcuno.
 - Sei in dubbio, o quello che ti scrive non torna.
 
 NON PUOI
-- Fare diagnosi o dare consigli clinici: davanti a un sintomo rassicura,
-  segna l'urgenza e passa la mano.
-- Inventare prezzi: si definiscono in visita.
+{divieti}
 
-Compila SEMPRE lo strumento registra_qualificazione. La risposta al paziente
+Compila SEMPRE lo strumento registra_qualificazione. La risposta al {persona}
 va in risposta_bozza, scritta come la manderesti davvero.
 """
 
 
-def istruzioni_per(cliente):
-    """Il prompt di QUESTO studio: nome, orari, indirizzo, trattamenti.
+def settore_di(cliente):
+    """Il mestiere di questo cliente. Senza cliente, il predefinito."""
+    return settori.per_chiave(getattr(cliente, "settore", "") or settori.PREDEFINITO)
 
-    Ogni cliente ha la sua reception. La segretaria del Centro Bianchi non
-    puo' dare gli orari dello Studio Rossi, perche' non li ha mai letti.
+
+def istruzioni_per(cliente):
+    """Il prompt di QUESTO cliente: mestiere, nome, orari, trattamenti.
+
+    Due cose cambiano insieme. Il MESTIERE decide come si parla e dove ci si
+    ferma; il CLIENTE decide nome, orari e trattamenti. La segretaria del
+    Centro Bianchi non puo' dare gli orari dello Studio Rossi, perche' non li
+    ha mai letti - e non puo' prenotare una rinoplastica, perche' non e' il
+    suo mestiere.
     """
+    s = settore_di(cliente)
     return MODELLO_ISTRUZIONI.format(
+        luogo=s.luogo,
+        mestiere=s.mestiere_di_chi_risponde,
+        persona=s.persona,
+        cosa_capire=s.cosa_capire,
+        scala_urgenza=s.scala_urgenza,
+        alto_valore=s.alto_valore_detto,
+        divieti=s.divieti,
         nome=cliente.nome,
         orari=cliente.orari,
         indirizzo=cliente.indirizzo or "chiedi in studio",
@@ -160,7 +169,7 @@ def all_operatore(motivo=None):
     }
 
 
-def _sistema(dati):
+def _sistema(dati, cliente=None):
     """Mette in riga i campi: tipi giusti, e le regole di sicurezza sopra al modello."""
     fuori = {}
     fuori["qualificato"] = bool(dati.get("qualificato"))
@@ -179,7 +188,8 @@ def _sistema(dati):
     # che non devono sbagliare mai.
     if fuori["urgenza"] == "emergenza":
         fuori["serve_umano"] = True
-    if any(k in (fuori["tipo_trattamento"] or "").lower() for k in ALTO_VALORE):
+    alto_valore = settore_di(cliente).alto_valore
+    if any(k in (fuori["tipo_trattamento"] or "").lower() for k in alto_valore):
         fuori["serve_umano"] = True
     return fuori
 
@@ -223,7 +233,7 @@ def qualifica(lead, storico, cliente):
               u"il modello non ha compilato lo strumento", "ERROR", cliente=slug)
         return all_operatore(u"il modello non ha compilato lo strumento")
 
-    fuori = _sistema(dati)
+    fuori = _sistema(dati, cliente)
     passo(lead_id, "qualificato",
           u"trattamento={} urgenza={} serve_umano={}".format(
               fuori["tipo_trattamento"], fuori["urgenza"], fuori["serve_umano"]),

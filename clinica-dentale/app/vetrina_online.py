@@ -42,6 +42,7 @@ def prepara_ambiente():
     os.environ["HUBSPOT_BASE"] = indirizzo
     os.environ["HUBSPOT_TOKEN_STUDIOROSSI"] = "TOKEN-VETRINA-ROSSI"
     os.environ["HUBSPOT_TOKEN_STUDIOBIANCHI"] = "TOKEN-VETRINA-BIANCHI"
+    os.environ["HUBSPOT_TOKEN_ESTETICAAURORA"] = "TOKEN-VETRINA-AURORA"
     os.environ.pop("HUBSPOT_TOKEN", None)     # 'demo' resta senza CRM: si vede il ripiego
 
     # In vetrina il cruscotto e' aperto apposta: e' quello che vuoi far vedere.
@@ -69,6 +70,17 @@ ESEMPI = [
      u"Vorrei un preventivo per un apparecchio ortodontico"),
     ("studiobianchi", "Elena Costa", "+39 333 4455667", "Estetica",
      u"Vorrei informazioni per l'estetica dentale, di pomeriggio"),
+
+    # Un secondo mestiere nella stessa vetrina. Non e' un vezzo: e' la prova
+    # che si vende a un'agenzia. Due settori diversi, regole diverse, stesso
+    # cruscotto - e nessuno dei due vede i pazienti dell'altro.
+    ("esteticaaurora", "Chiara Fontana", "+39 342 7788990", "Filler Settembre",
+     u"Buonasera, ho fatto il filler alle labbra da voi giovedi' e stamattina "
+     u"si e' gonfiato molto da un lato"),
+    ("esteticaaurora", "Martina Greco", "+39 346 1122556", "Chirurgia",
+     u"Vorrei un preventivo per una rinoplastica, di mattina se possibile"),
+    ("esteticaaurora", "Luca Ferrari", "+39 320 6677889", "Laser",
+     u"Vorrei informazioni per l'epilazione laser, di pomeriggio"),
 ]
 
 
