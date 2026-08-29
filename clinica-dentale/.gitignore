@@ -1,0 +1,13 @@
+# Le chiavi non vanno MAI su git.
+CHIAVI.bat
+.env
+
+# Roba locale
+dati/
+*.db
+*.log
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store

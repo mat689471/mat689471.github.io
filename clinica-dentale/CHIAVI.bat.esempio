@@ -1,0 +1,25 @@
+@echo off
+rem ---------------------------------------------------------------
+rem  Copia questo file come  CHIAVI.bat  e mettici le tue chiavi.
+rem  CHIAVI.bat resta sul tuo computer: non condividerlo con nessuno.
+rem
+rem  Regole: NIENTE virgolette, NIENTE spazi attorno all'uguale.
+rem  Uno spazio incollato per sbaglio fa rispondere 401 a un token
+rem  perfettamente valido, e ci si perde un pomeriggio.
+rem ---------------------------------------------------------------
+
+rem --- UNA SOLA, globale: e' il costo di chi fa girare il servizio ---
+set ANTHROPIC_API_KEY=sk-ant-metti-qui-la-tua-chiave
+
+rem --- UNO PER CLIENTE. Il nome deve combaciare con clienti.json ---
+set HUBSPOT_TOKEN=pat-token-dello-studio-dimostrativo
+set HUBSPOT_TOKEN_STUDIOROSSI=pat-token-dello-studio-rossi
+set HUBSPOT_TOKEN_STUDIOBIANCHI=pat-token-del-centro-bianchi
+
+rem  Aggiungendo un cliente in clienti.json, aggiungi qui la sua riga.
+
+rem --- Facoltativi ---
+rem  claude-sonnet-5 costa meno di claude-opus-5 e per questo lavoro basta.
+rem set ANTHROPIC_MODEL=claude-sonnet-5
+rem set HUBSPOT_PIPELINE=default
+rem set HUBSPOT_DEALSTAGE=appointmentscheduled

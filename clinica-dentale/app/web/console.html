@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studi dentistici — pazienti in arrivo</title>
+<style>
+  :root{
+    --sfondo:#f4f6f8; --carta:#fff; --bordo:#e2e8f0; --testo:#1a2433;
+    --tenue:#64748b; --blu:#0f7b8a; --blu-chiaro:#e6f4f6;
+    --rosso:#c0392b; --rosso-chiaro:#fdecea; --ambra:#b7791f; --ambra-chiaro:#fdf6e3;
+    --verde:#1e7a4c; --verde-chiaro:#e8f6ef;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--sfondo);color:var(--testo);
+       font:15px/1.5 -apple-system,"Segoe UI",Roboto,system-ui,sans-serif}
+  header{background:var(--carta);border-bottom:1px solid var(--bordo);padding:14px 22px;
+         display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+         position:sticky;top:0;z-index:10}
+  h1{font-size:18px;margin:0;font-weight:650;letter-spacing:-.01em}
+  h1 small{display:block;font-size:12px;color:var(--tenue);font-weight:400;letter-spacing:0}
+  .spia{margin-left:auto;font-size:12px;color:var(--verde);display:flex;align-items:center;gap:7px}
+  .spia i{width:8px;height:8px;border-radius:50%;background:var(--verde);display:inline-block}
+  .spia.giu{color:var(--rosso)} .spia.giu i{background:var(--rosso)}
+
+  .studi{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .studi button{padding:6px 13px;border-radius:20px;font-size:13px;font-weight:500}
+  .studi button.scelto{background:var(--blu);border-color:var(--blu);color:#fff}
+  .t-studio{background:#eef2f7;color:#475569;font-weight:500;text-transform:none;
+            letter-spacing:0}
+
+  .numeri{display:flex;gap:10px;flex-wrap:wrap}
+  .n{background:var(--sfondo);border:1px solid var(--bordo);border-radius:9px;
+     padding:7px 14px;min-width:86px}
+  .n b{display:block;font-size:21px;font-weight:650;line-height:1.15}
+  .n span{font-size:11px;color:var(--tenue);text-transform:uppercase;letter-spacing:.05em}
+  .n.urgente b{color:var(--rosso)}
+
+  main{display:grid;grid-template-columns:minmax(340px,1.05fr) minmax(320px,1fr) minmax(260px,.8fr);
+       gap:16px;padding:16px 22px 40px;align-items:start}
+  @media(max-width:1150px){main{grid-template-columns:1fr}}
+
+  section{background:var(--carta);border:1px solid var(--bordo);border-radius:12px;overflow:hidden}
+  section>h2{font-size:13px;margin:0;padding:12px 16px;border-bottom:1px solid var(--bordo);
+             text-transform:uppercase;letter-spacing:.06em;color:var(--tenue);font-weight:650;
+             display:flex;align-items:center;gap:9px}
+  .conta{background:var(--bordo);color:var(--testo);border-radius:20px;
+         padding:1px 9px;font-size:11px;letter-spacing:0}
+  .conta.rosso{background:var(--rosso);color:#fff}
+  .corpo{max-height:min(64vh,620px);overflow:auto}
+  .vuoto{padding:26px 16px;color:var(--tenue);text-align:center;font-size:13px}
+
+  .voce{padding:13px 16px;border-bottom:1px solid var(--bordo);cursor:pointer}
+  .voce:last-child{border-bottom:0}
+  .voce:hover{background:#fafbfc}
+  .voce.scelto{background:var(--blu-chiaro)}
+  .riga1{display:flex;align-items:center;gap:9px;margin-bottom:3px}
+  .nome{font-weight:600}
+  .quando{margin-left:auto;font-size:11px;color:var(--tenue);white-space:nowrap}
+  .perche{font-size:13px;color:var(--tenue);overflow:hidden;text-overflow:ellipsis;
+          display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+  .targa{font-size:11px;font-weight:650;padding:2px 8px;border-radius:5px;white-space:nowrap;
+         text-transform:uppercase;letter-spacing:.04em}
+  .t-emergenza{background:var(--rosso-chiaro);color:var(--rosso)}
+  .t-alta{background:var(--ambra-chiaro);color:var(--ambra)}
+  .t-media,.t-bassa{background:var(--sfondo);color:var(--tenue)}
+  .t-prenotato{background:var(--verde-chiaro);color:var(--verde)}
+  .t-da_operatore{background:var(--rosso-chiaro);color:var(--rosso)}
+  .t-preso{background:var(--blu-chiaro);color:var(--blu)}
+  .t-chiuso{background:var(--sfondo);color:var(--tenue)}
+
+  .azioni{display:flex;gap:8px;margin-top:10px}
+  button{font:inherit;font-size:13px;padding:6px 13px;border-radius:7px;cursor:pointer;
+         border:1px solid var(--bordo);background:var(--carta);color:var(--testo)}
+  button:hover{background:var(--sfondo)}
+  button.primario{background:var(--blu);border-color:var(--blu);color:#fff;font-weight:600}
+  button.primario:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.5;cursor:default}
+
+  .app{padding:11px 16px;border-bottom:1px solid var(--bordo);display:flex;
+       align-items:baseline;gap:11px}
+  .app:last-child{border-bottom:0}
+  .ora{font-weight:650;color:var(--blu);white-space:nowrap}
+  .app small{color:var(--tenue);margin-left:auto}
+
+  /* scheda del paziente */
+  .velo{position:fixed;inset:0;background:rgba(15,25,40,.45);display:none;
+        align-items:center;justify-content:center;padding:20px;z-index:50}
+  .velo.aperto{display:flex}
+  .scheda{background:var(--carta);border-radius:14px;width:min(680px,100%);
+          max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+  .scheda header{position:static;border-bottom:1px solid var(--bordo)}
+  .scheda .dentro{overflow:auto;padding:18px 20px}
+  .campi{display:grid;grid-template-columns:auto 1fr;gap:7px 16px;font-size:14px;
+         margin-bottom:20px}
+  .campi dt{color:var(--tenue)}
+  .campi dd{margin:0}
+  .bolla{padding:10px 13px;border-radius:11px;margin-bottom:9px;max-width:82%;font-size:14px;
+         white-space:pre-wrap;word-wrap:break-word}
+  .bolla.paziente{background:var(--sfondo);border:1px solid var(--bordo)}
+  .bolla.studio{background:var(--blu-chiaro);margin-left:auto}
+  .chi{font-size:11px;color:var(--tenue);margin-bottom:4px;display:flex;gap:6px}
+
+  /* prova un paziente */
+  .prova{padding:14px 16px}
+  .prova textarea{width:100%;min-height:66px;resize:vertical;font:inherit;font-size:14px;
+                  padding:9px 11px;border:1px solid var(--bordo);border-radius:8px}
+  .prova input{width:100%;font:inherit;font-size:14px;padding:8px 11px;margin-bottom:8px;
+               border:1px solid var(--bordo);border-radius:8px}
+  .esito{margin-top:10px;font-size:13px;padding:10px 12px;border-radius:8px;display:none}
+  .esito.ok{display:block;background:var(--verde-chiaro);color:var(--verde)}
+  .esito.ko{display:block;background:var(--rosso-chiaro);color:var(--rosso)}
+
+  /* la fascia che compare solo quando manca una chiave: non si puo' ignorare */
+  .allarme{display:none;padding:10px 22px;background:#7f1d1d;color:#fff;font-size:13px;
+           font-weight:500;text-align:center}
+  .allarme.acceso{display:block}
+  .allarme a{color:#fff}
+</style>
+</head>
+<body>
+
+<div id="allarme" class="allarme"></div>
+
+<header>
+  <h1 id="intestazione">Studi dentistici
+    <small>i pazienti che scrivono, seguiti da soli — tranne quando serve una persona</small></h1>
+  <div class="studi" id="studi"></div>
+  <div class="numeri" id="numeri"></div>
+  <a href="/vetrina" target="_blank" style="font-size:13px;color:var(--blu);
+     text-decoration:none;font-weight:500">Vetrina per il cliente &rarr;</a>
+  <div class="spia" id="spia"><i></i> collegato</div>
+</header>
+
+<main>
+  <section>
+    <h2>Aspettano una persona <span class="conta" id="contaCoda">0</span></h2>
+    <div class="corpo" id="coda"></div>
+  </section>
+
+  <section>
+    <h2>Pazienti <span class="conta" id="contaPaz">0</span></h2>
+    <div class="corpo" id="pazienti"></div>
+  </section>
+
+  <div style="display:grid;gap:16px">
+    <section>
+      <h2>Appuntamenti</h2>
+      <div class="corpo" id="agenda" style="max-height:300px"></div>
+    </section>
+    <section>
+      <h2>Prova con un paziente finto</h2>
+      <div class="prova">
+        <input id="pNome" value="Elena Costa" placeholder="Nome">
+        <input id="pTel" value="+39 333 4455667" placeholder="Telefono">
+        <textarea id="pMsg">Buongiorno, vorrei prenotare una pulizia dei denti, preferibilmente di pomeriggio</textarea>
+        <div class="azioni">
+          <button class="primario" id="btnProva">Fallo scrivere</button>
+        </div>
+        <div class="esito" id="esitoProva"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<div class="velo" id="velo">
+  <div class="scheda">
+    <header><h1 id="sNome">Paziente</h1>
+      <button style="margin-left:auto" id="sChiudi">Chiudi</button></header>
+    <div class="dentro" id="sCorpo"></div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+
+/* Quale studio si sta guardando. "" = tutti insieme.
+   Resta scelto anche dopo un ricaricamento: chi lavora in reception guarda
+   sempre lo stesso studio, non vuole risceglierlo ogni volta. */
+let studio = "";
+try{ studio = localStorage.getItem("studio") || ""; }catch(e){}
+let elencoStudi = [];
+const esc = t => (t==null?"":String(t)).replace(/[&<>"]/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function quando(iso){
+  if(!iso) return "";
+  const d = new Date(iso.endsWith("Z") ? iso : iso + "Z");
+  if(isNaN(d)) return iso;
+  const oggi = new Date();
+  const stessoGiorno = d.toDateString() === oggi.toDateString();
+  const ora = d.toLocaleTimeString("it", {hour:"2-digit", minute:"2-digit"});
+  return stessoGiorno ? "oggi " + ora
+       : d.toLocaleDateString("it", {day:"2-digit", month:"short"}) + " " + ora;
+}
+
+// ---- disegno ---------------------------------------------------------------
+function disegnaStudi(){
+  if(!elencoStudi.length) return;
+  const uno = elencoStudi.find(c => c.slug === studio);
+  $("#intestazione").firstChild.textContent = uno ? uno.nome + " " : "Tutti gli studi ";
+  $("#studi").innerHTML =
+    `<button data-studio="" class="${studio===""?"scelto":""}">Tutti</button>` +
+    elencoStudi.map(c => `<button data-studio="${esc(c.slug)}"
+        class="${studio===c.slug?"scelto":""}"
+        title="${c.hubspot ? "CRM collegato ("+esc(c.hubspot_env)+")"
+                           : "nessun CRM: scrive in locale"}">
+        ${esc(c.nome)}${c.hubspot ? "" : " ·"}</button>`).join("");
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-studio]");
+  if(!b) return;
+  studio = b.dataset.studio;
+  try{ localStorage.setItem("studio", studio); }catch(err){}
+  disegnaStudi(); aggiorna();
+});
+
+const nomeStudio = slug => (elencoStudi.find(c => c.slug === slug) || {}).nome || slug;
+const targaStudio = slug => (studio || !slug) ? ""
+  : `<span class="targa t-studio">${esc(nomeStudio(slug))}</span>`;
+
+function disegnaNumeri(n){
+  $("#numeri").innerHTML =
+    [["pazienti","Pazienti",""],["prenotati","Prenotati",""],
+     ["in_coda","In attesa",""],["urgenti","Urgenti","urgente"],
+     ["slot_liberi","Posti liberi",""]]
+    .map(([k,eti,cl]) => `<div class="n ${n[k]&&cl?cl:""}">
+        <b>${n[k]??0}</b><span>${eti}</span></div>`).join("");
+}
+
+function disegnaCoda(coda){
+  $("#contaCoda").textContent = coda.length;
+  $("#contaCoda").className = "conta" + (coda.some(v=>v.priorita<=2) ? " rosso" : "");
+  $("#coda").innerHTML = coda.length ? coda.map(v => `
+    <div class="voce" data-lead="${v.lead_id}">
+      <div class="riga1">
+        <span class="nome">${esc(v.nome||"senza nome")}</span>
+        ${targaStudio(v.cliente)}
+        <span class="targa t-${esc(v.urgenza||"media")}">${esc(v.urgenza||"da vedere")}</span>
+        ${v.stato==="preso" ? '<span class="targa t-preso">in carico</span>' : ""}
+        <span class="quando">${quando(v.creato_il)}</span>
+      </div>
+      <div class="perche">${esc(v.telefono||"")} · ${esc(v.tipo_trattamento||"da capire")}</div>
+      <div class="azioni">
+        ${v.stato==="aperto"
+          ? `<button data-prendi="${v.id}">Lo seguo io</button>`
+          : `<button disabled>${esc(v.operatore||"in carico")}</button>`}
+        <button data-chiudi="${v.id}">Fatto</button>
+      </div>
+    </div>`).join("")
+    : '<div class="vuoto">Nessuno in attesa.<br>Tutto sotto controllo.</div>';
+}
+
+function disegnaPazienti(lista){
+  $("#contaPaz").textContent = lista.length;
+  $("#pazienti").innerHTML = lista.length ? lista.map(p => `
+    <div class="voce" data-lead="${p.id}">
+      <div class="riga1">
+        <span class="nome">${esc(p.nome||"senza nome")}</span>
+        ${targaStudio(p.cliente)}
+        ${p.urgenza && p.urgenza !== "bassa"
+          ? `<span class="targa t-${esc(p.urgenza)}">${esc(p.urgenza)}</span>` : ""}
+        <span class="targa t-${esc(p.stato)}">${esc((p.stato||"").replace("_"," "))}</span>
+        <span class="quando">${quando(p.creato_il)}</span>
+      </div>
+      <div class="perche">${p.ultimo_messaggio ? "&ldquo;" + esc(p.ultimo_messaggio) + "&rdquo;" : "—"}</div>
+      ${p.appuntamento ? `<div class="perche" style="color:var(--verde);margin-top:3px">
+         Appuntamento ${quando(p.appuntamento)}</div>` : ""}
+    </div>`).join("")
+    : '<div class="vuoto">Ancora nessun paziente.<br>Provane uno qui accanto.</div>';
+}
+
+function disegnaAgenda(a){
+  $("#agenda").innerHTML = a.length ? a.map(s => `
+    <div class="app">
+      <span class="ora">${quando(s.inizio)}</span>
+      <span>${esc(s.nome||"—")} ${targaStudio(s.cliente)}<br>
+        <small style="color:var(--tenue)">${esc(s.tipo_trattamento||"")}</small></span>
+      <small>${esc(s.studio||"")}</small>
+    </div>`).join("")
+    : '<div class="vuoto">Agenda libera.</div>';
+}
+
+// ---- la scheda del paziente -----------------------------------------------
+let pazienteAperto = null;
+async function apriPaziente(id){
+  const q = studio ? "?cliente=" + encodeURIComponent(studio) : "";
+  const d = await (await fetch("/api/paziente/" + id + q)).json();
+  if(d.errore) return;
+  const p = d.paziente;
+  pazienteAperto = p;
+  $("#sNome").textContent = p.nome || ("Paziente " + p.id);
+  $("#sCorpo").innerHTML = `
+    <dl class="campi">
+      <dt>Studio</dt><dd>${esc(nomeStudio(p.cliente))}</dd>
+      <dt>Telefono</dt><dd>${esc(p.telefono||"—")}</dd>
+      <dt>Email</dt><dd>${esc(p.email||"—")}</dd>
+      <dt>Campagna</dt><dd>${esc(p.campagna||"—")}</dd>
+      <dt>Stato</dt><dd><span class="targa t-${esc(p.stato)}">${esc((p.stato||"").replace("_"," "))}</span></dd>
+      <dt>Trattamento</dt><dd>${esc(p.tipo_trattamento||"—")}</dd>
+      <dt>Urgenza</dt><dd>${esc(p.urgenza||"—")}</dd>
+      <dt>Su HubSpot</dt><dd>${p.crm_contact_id
+          ? "contatto " + esc(p.crm_contact_id) + " · trattativa " + esc(p.crm_deal_id||"—")
+          : "non ancora"}</dd>
+    </dl>
+    <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.06em;
+               color:var(--tenue);margin:0 0 12px">Conversazione</h3>
+    ${d.conversazione.map(m => `
+      <div class="bolla ${m.ruolo==="user"?"paziente":"studio"}">
+        <div class="chi">${m.ruolo==="user" ? esc(p.nome||"il paziente") : "studio"}
+          · ${quando(m.creato_il)}</div>${esc(m.testo)}</div>`).join("")
+      || '<div class="vuoto">Nessun messaggio.</div>'}
+    <div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--bordo)">
+      <button id="btnCancella" style="border-color:var(--rosso);color:var(--rosso)">
+        Cancella i dati di questo paziente</button>
+      <div style="font-size:12px;color:var(--tenue);margin-top:7px">
+        Su richiesta del paziente. Sparisce da qui con messaggi e appuntamento;
+        sul CRM esterno va cancellato dal CRM.</div>
+    </div>`;
+  $("#btnCancella").onclick = () => cancellaPaziente(p);
+  $("#velo").classList.add("aperto");
+}
+async function cancellaPaziente(p){
+  const nome = p.nome || ("paziente " + p.id);
+  if(!confirm("Cancellare definitivamente i dati di " + nome + "?\n\n" +
+              "Spariscono nome, contatti, messaggi e prenotazione. Non si torna indietro."))
+    return;
+  const q = "?cliente=" + encodeURIComponent(p.cliente || studio || "");
+  const r = await fetch("/api/paziente/" + p.id + q, {method:"DELETE"});
+  const d = await r.json();
+  if(d.ok){
+    $("#velo").classList.remove("aperto");
+    aggiorna();
+    if(d.resta_da_fare) alert("Cancellato.\n\nResta da fare: " + d.resta_da_fare);
+  } else {
+    alert("Non sono riuscito a cancellarlo: " + (d.errore || "errore sconosciuto"));
+  }
+}
+$("#sChiudi").onclick = () => $("#velo").classList.remove("aperto");
+$("#velo").onclick = e => { if(e.target === $("#velo")) $("#velo").classList.remove("aperto"); };
+
+// ---- azioni ----------------------------------------------------------------
+document.addEventListener("click", async e => {
+  const prendi = e.target.closest("[data-prendi]");
+  const chiudi = e.target.closest("[data-chiudi]");
+  if(prendi || chiudi){
+    e.stopPropagation();
+    const id = (prendi||chiudi).dataset.prendi || chiudi.dataset.chiudi;
+    await fetch(`/api/coda/${id}/${prendi ? "prendi" : "chiudi"}`, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({operatore:"reception"})});
+    aggiorna();
+    return;
+  }
+  const voce = e.target.closest(".voce");
+  if(voce) apriPaziente(voce.dataset.lead);
+});
+
+$("#btnProva").onclick = async () => {
+  const b = $("#btnProva"), esito = $("#esitoProva");
+  b.disabled = true; b.textContent = "sta rispondendo…";
+  esito.className = "esito";
+  try{
+    const dove = studio || (elencoStudi[0] || {}).slug || "";
+    const r = await fetch("/webhook/lead/" + encodeURIComponent(dove), {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({nome:$("#pNome").value, telefono:$("#pTel").value,
+                            email:"prova@example.com", campagna:"Prova dal cruscotto",
+                            messaggio:$("#pMsg").value, consenso:true})});
+    const d = await r.json();
+    const q = d.qualificazione || {};
+    esito.className = "esito ok";
+    esito.textContent = (d.errore ? d.errore + " · " : "") + (d.stato === "da_operatore"
+      ? `Passato a una persona: ${q.urgenza||""} ${q.tipo_trattamento||""}. Nessuna prenotazione automatica.`
+      : `${q.tipo_trattamento||"capito"} · urgenza ${q.urgenza||"—"} · stato ${d.stato}.`);
+    aggiorna();
+  }catch(err){
+    esito.className = "esito ko";
+    esito.textContent = "Non ci sono riuscito: " + err.message;
+  }
+  b.disabled = false; b.textContent = "Fallo scrivere";
+};
+
+// ---- aggiornamento ---------------------------------------------------------
+async function aggiorna(){
+  try{
+    const d = await (await fetch("/api/stato" +
+      (studio ? "?cliente=" + encodeURIComponent(studio) : ""))).json();
+    if(d.clienti){ elencoStudi = d.clienti; disegnaStudi(); }
+    disegnaNumeri(d.numeri); disegnaCoda(d.coda);
+    disegnaPazienti(d.pazienti); disegnaAgenda(d.agenda);
+    $("#spia").className = "spia";
+    const sic = d.sicurezza || {};
+    const aperte = [];
+    if(!sic.console_protetta) aperte.push("CONSOLE_TOKEN");
+    if(!sic.webhook_protetto) aperte.push("WEBHOOK_TOKEN");
+    const fascia = $("#allarme");
+    if(d.vetrina){
+      fascia.className = "allarme acceso";
+      fascia.style.background = "#0f7b8a";
+      fascia.textContent = "VETRINA — Claude e HubSpot sono simulati, i pazienti " +
+        "sono d'esempio e nulla di questo costa o esce da qui.";
+    } else if(aperte.length){
+      fascia.className = "allarme acceso";
+      fascia.textContent = "Nessuna chiave impostata (" + aperte.join(", ") +
+        "): chiunque conosca l'indirizzo entra qui dentro. " +
+        "Va bene in locale, non online con pazienti veri.";
+    } else { fascia.className = "allarme"; }
+    const senzaCrm = (d.clienti||[]).filter(c => !c.hubspot).length;
+    $("#spia").innerHTML = "<i></i> collegato" +
+      (d.config && !d.config.anthropic ? " · manca la chiave Anthropic" : "") +
+      (senzaCrm ? " · " + senzaCrm + " studi senza CRM" : "");
+  }catch(e){
+    $("#spia").className = "spia giu";
+    $("#spia").innerHTML = "<i></i> server non raggiungibile";
+  }
+}
+aggiorna();
+setInterval(aggiorna, 3000);
+</script>
+</body>
+</html>

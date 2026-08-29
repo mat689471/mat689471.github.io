@@ -1,0 +1,42 @@
+{
+  "_nota": "I clienti dello studio. NESSUN SEGRETO QUI DENTRO: di ogni token si scrive solo il NOME della variabile d'ambiente, mai il valore. Per aggiungerne uno, copia un blocco e cambia i campi (vedi LEGGIMI.md).",
+  "predefinito": "demo",
+  "clienti": [
+    {
+      "slug": "demo",
+      "nome": "Studio Dimostrativo",
+      "hubspot_token_env": "HUBSPOT_TOKEN",
+      "orari": "lunedi-venerdi 9:00-19:00, sabato 9:00-13:00",
+      "indirizzo": "studio in centro, parcheggio convenzionato",
+      "trattamenti": ["igiene", "sbiancamento", "otturazione", "devitalizzazione",
+                      "estrazione", "impianto", "ortodonzia", "protesi", "controllo"],
+      "prima_visita_gratuita": true,
+      "canale": {"tipo": "console"},
+      "agenda": {"ore": [9, 15], "giorni": 5, "durata_min": 45, "studio": "Studio 1"}
+    },
+    {
+      "slug": "studiorossi",
+      "nome": "Studio Dentistico Rossi",
+      "hubspot_token_env": "HUBSPOT_TOKEN_STUDIOROSSI",
+      "orari": "lunedi-venerdi 8:30-18:30",
+      "indirizzo": "via Garibaldi 12, Milano",
+      "trattamenti": ["igiene", "sbiancamento", "otturazione", "impianto",
+                      "ortodonzia", "controllo"],
+      "prima_visita_gratuita": true,
+      "canale": {"tipo": "console"},
+      "agenda": {"ore": [9, 14, 16], "giorni": 5, "durata_min": 45, "studio": "Rossi - sala A"}
+    },
+    {
+      "slug": "studiobianchi",
+      "nome": "Centro Odontoiatrico Bianchi",
+      "hubspot_token_env": "HUBSPOT_TOKEN_STUDIOBIANCHI",
+      "orari": "lunedi-sabato 9:00-20:00",
+      "indirizzo": "corso Vittorio 88, Torino",
+      "trattamenti": ["igiene", "estetica dentale", "implantologia", "pedodonzia",
+                      "controllo"],
+      "prima_visita_gratuita": false,
+      "canale": {"tipo": "console"},
+      "agenda": {"ore": [10, 17], "giorni": 5, "durata_min": 30, "studio": "Bianchi - studio 2"}
+    }
+  ]
+}

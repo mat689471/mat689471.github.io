@@ -1,0 +1,18 @@
+# Roba locale che non deve finire nell'immagine
+dati/
+*.db
+*.log
+__pycache__/
+*.pyc
+.venv/
+venv/
+.git/
+.gitignore
+.DS_Store
+
+# I file di Windows non servono dentro un container Linux
+*.bat
+
+# E soprattutto: le chiavi restano fuori.
+CHIAVI.bat
+.env

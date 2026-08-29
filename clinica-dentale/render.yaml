@@ -1,0 +1,94 @@
+# Deploy su Render — https://render.com
+#
+# Qui dentro ci sono DUE servizi separati, e la separazione e' il punto:
+#
+#   1. clinica-vetrina  — il link pubblico da mandare ai clienti.
+#      Claude e HubSpot sono finti. NESSUNA CHIAVE VERA. Non costa niente
+#      per chiamata, quindi cento curiosi che ci giocano non ti presentano
+#      un conto. Il cruscotto e' aperto apposta: non c'e' un dato vero.
+#
+#   2. clinica-produzione — il sistema che serve gli studi paganti.
+#      Chiavi vere, cruscotto chiuso a chiave, disco permanente.
+#      Questo indirizzo NON si manda in giro.
+#
+# Non unire mai i due. Il giorno che metti la chiave vera sul link pubblico,
+# paghi tu ogni visitatore, e i pazienti veri stanno su una pagina aperta.
+#
+# NESSUN SEGRETO IN QUESTO FILE: sync:false significa "lo scrivo a mano nel
+# pannello di Render", e il valore non passa mai da git.
+
+services:
+
+  # =========================================================================
+  # 1. LA VETRINA — pubblica, gratuita, senza chiavi
+  # =========================================================================
+  - type: web
+    name: clinica-vetrina
+    runtime: docker
+    plan: free             # si addormenta dopo ~15 min di silenzio: vedi nota
+    region: frankfurt
+    healthCheckPath: /health
+    autoDeploy: true
+
+    envVars:
+      # L'interruttore: finti Claude e HubSpot, dentro il processo.
+      - key: DEMO_PUBBLICA
+        value: "1"
+      # Quante prove puo' fare il pubblico prima che la vetrina si fermi.
+      - key: DEMO_TETTO
+        value: "300"
+      # Niente disco: la vetrina riparte pulita a ogni riavvio, ed e' meglio
+      # cosi' — i pazienti finti dei visitatori non si accumulano.
+
+    # NOTA sul piano free: dopo un quarto d'ora di silenzio il servizio si
+    # addormenta, e il primo che apre il link aspetta quasi un minuto. Per una
+    # vetrina va bene, a un patto: aprila TU un minuto prima di una call o
+    # prima di mandare il link. Se ti da' fastidio, passa a starter.
+
+  # =========================================================================
+  # 2. LA PRODUZIONE — chiavi vere, chiusa a chiave, disco permanente
+  # =========================================================================
+  - type: web
+    name: clinica-risposta-lead
+    runtime: docker
+    plan: starter          # il piano gratuito dorme: i lead notturni si perdono
+    region: frankfurt
+    healthCheckPath: /health
+    autoDeploy: true
+
+    envVars:
+      # --- chi puo' entrare -------------------------------------------------
+      # Senza questi due il cruscotto e' aperto a chiunque trovi l'indirizzo,
+      # e li' dentro ci sono nomi, telefoni e problemi di salute di pazienti.
+      - key: CONSOLE_TOKEN
+        generateValue: true      # Render ne genera uno lungo e lo tiene lui
+      - key: WEBHOOK_TOKEN
+        generateValue: true      # questo lo dai a chi monta il modulo sul sito
+
+      # --- una sola chiave modello, globale: e' il tuo costo ----------------
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-5
+
+      # --- una per ogni cliente. Il nome deve combaciare con clienti.json ---
+      - key: HUBSPOT_TOKEN_STUDIOROSSI
+        sync: false
+      - key: HUBSPOT_TOKEN_STUDIOBIANCHI
+        sync: false
+      # Aggiungendo un cliente, aggiungi qui la sua riga e riavvia.
+
+      # --- il database su disco permanente, altrimenti sparisce a ogni deploy
+      - key: DB_PATH
+        value: /var/dati/clinica.db
+
+    disk:
+      name: dati-clinica
+      mountPath: /var/dati
+      sizeGB: 1
+
+# Se vuoi dare a UNO studio il suo cruscotto, senza che veda gli altri:
+# duplica il secondo servizio, cambiagli nome, e aggiungi
+#   - key: CONSOLE_CLIENTE
+#     value: studiorossi
+# Quell'installazione vedra' solo Rossi, anche cambiando l'indirizzo a mano.
