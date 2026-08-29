@@ -36,6 +36,75 @@ Onestà prima di tutto, così nessuno resta deluso in demo.
 
 ---
 
+## Come arriva la risposta al paziente
+
+Ogni cliente ha il **suo** canale, nel campo `canale` di `clienti.json`.
+
+| `tipo` | Cosa fa | Quando usarlo |
+|---|---|---|
+| `console` | scrive a schermo, marcato `[SIMULATO]`. **Non manda niente** | prove e vetrina |
+| `email` | manda davvero, via SMTP | il primo cliente vero |
+| `whatsapp` | Cloud API di Meta | quando la clinica ha numero e token |
+
+**La regola che vale sempre: se la risposta non parte, il paziente passa a una
+persona.** Non resta in silenzio, e nella coda c'e' scritto il motivo. Un
+paziente che crede di aver ricevuto risposta e non l'ha ricevuta e' peggio di
+un paziente richiamato a mano.
+
+### Email
+
+Il server SMTP e' **uno solo, globale**: e' la tua infrastruttura, come la
+chiave Anthropic. Mandare dal dominio della clinica richiederebbe i loro DNS,
+e non si chiede prima di aver firmato.
+
+```
+SMTP_HOST  SMTP_PORT  SMTP_USER  SMTP_PASSWORD  SMTP_FROM
+```
+
+Per cliente cambia solo **come si presenta**:
+
+```json
+"canale": {
+  "tipo": "email",
+  "nome_mittente": "Clinica Estetica Aurora",
+  "rispondi_a": "info@clinica-aurora.it",
+  "oggetto": "La sua richiesta"
+}
+```
+
+Nella posta del paziente si legge *Clinica Estetica Aurora*, e se risponde la
+mail arriva **alla clinica**, non a te.
+
+### WhatsApp, e la regola delle 24 ore
+
+Scritto per intero e provato contro un finto Meta. Non e' acceso perche' non
+e' roba tua: numero verificato, azienda verificata e modelli approvati sono
+intestati **alla clinica**.
+
+```json
+"canale": {
+  "tipo": "whatsapp",
+  "id_numero": "111222333",
+  "token_env": "WHATSAPP_TOKEN_AURORA",
+  "modello": "risposta_lead",
+  "lingua_modello": "it"
+}
+```
+
+**Il punto che fa cadere tutti:** Meta lascia mandare testo libero **solo
+entro 24 ore** dall'ultimo messaggio del paziente. Fuori da li' passano solo i
+**modelli approvati**.
+
+- Il paziente ci ha scritto **su WhatsApp** -> dentro la finestra, testo
+  libero. Perfetto.
+- Il lead arriva **da un modulo o da una campagna** -> il paziente non ci ha
+  mai scritto, la finestra non e' mai stata aperta, serve il modello.
+
+Se il modello non c'e', il sistema **non ci prova**: lo dice e passa il
+paziente a una persona. Meglio di un rifiuto di Meta che nessuno legge.
+
+---
+
 ## Il mestiere e' un dato, non e' scritto nel codice
 
 Il sistema e' nato per studi dentistici, ma l'odontoiatria non e' piu' cucita
@@ -80,6 +149,13 @@ cambiare: è il modo più veloce per far capire a un cliente cosa compra.
 **`PROVA-SENZA-SPENDERE.bat`** — i 5 punti di accettazione + 12 casi storti.
 
 **`PROVA-MULTICLIENTE.bat`** — la prova che due studi non si toccano.
+
+**`python tests/canali.py`** — le 24 prove che il messaggio esce davvero:
+un finto SMTP che parla il protocollo vero, un finto Meta con la regola delle
+24 ore, e il giro completo che passa il paziente a una persona se la risposta
+non parte.
+
+**`python tests/settori.py`** — dentale ed estetica non si contaminano.
 
 **`python tests/sicurezza.py`** — le cinque prove che, se saltano, ti costano
 un cliente: cruscotto chiuso a chiave, le due chiavi separate, la scheda di un

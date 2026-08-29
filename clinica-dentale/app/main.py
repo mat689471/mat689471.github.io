@@ -27,7 +27,7 @@ from pydantic import BaseModel
 
 from app import agent, clienti, config, db, settori, sicurezza
 from app.calendar.sqlite_cal import CalendarioSqlite
-from app.channels.console import CanaleConsole
+from app.channels import scegli_canale
 from app.crm import scegli_crm
 from app.logging_setup import passo, prepara
 
@@ -91,6 +91,21 @@ def _cliente_o_errore(slug):
 # ---------------------------------------------------------------------------
 # Il giro di un paziente
 # ---------------------------------------------------------------------------
+def _recapito(cliente, lead, lead_id):
+    """Dove scrivere a questo paziente, secondo il canale del suo cliente.
+
+    Non e' un dettaglio: mandare un'email a un numero di telefono, o un
+    WhatsApp a un indirizzo, fallisce sempre. Il canale email vuole la mail,
+    quello WhatsApp il numero; la console si accontenta di quello che c'e'.
+    """
+    tipo = (dict(getattr(cliente, "canale", None) or {}).get("tipo") or "console").lower()
+    if tipo == "email":
+        return lead.get("email") or lead.get("telefono") or str(lead_id)
+    if tipo == "whatsapp":
+        return lead.get("telefono") or lead.get("email") or str(lead_id)
+    return lead.get("telefono") or lead.get("email") or str(lead_id)
+
+
 def _scrivi_crm(cliente, lead_id, lead, qual):
     """Scrive contatto e trattativa sul CRM DI QUESTO cliente.
 
@@ -149,17 +164,27 @@ def _handoff(cliente, lead_id, qual, motivo=None):
     lead = db.leggi_lead(lead_id, cliente.slug) or {}
     cortesia = (u"Grazie, la mettiamo subito in contatto con un nostro operatore, "
                 u"che la richiamera' al piu' presto.")
-    _canale(cliente).invia(lead.get("telefono") or lead.get("email") or str(lead_id),
-                           cortesia)
+    invio = _canale(cliente, lead_id).invia(_recapito(cliente, lead, lead_id), cortesia)
+    passo(lead_id, "risposta inviata" if invio["ok"] else "risposta NON inviata",
+          u"canale={} ok={} {}".format(invio["canale"], invio["ok"],
+                                       invio.get("errore") or ""),
+          "INFO" if invio["ok"] else "WARNING", cliente=cliente.slug)
     db.aggiungi_messaggio(lead_id, "assistant", cortesia)
     esito_crm = _scrivi_crm(cliente, lead_id, lead, qual)
     return {"stato": "da_operatore", "in_coda": True, "crm": esito_crm,
             "risposta": cortesia}
 
 
-def _canale(cliente):
-    """Oggi e' sempre lo stub, ma gia' intestato al cliente giusto."""
-    return CanaleConsole(cliente.slug, cliente.canale)
+def _canale(cliente, lead_id=0):
+    """Il canale di QUESTO cliente, con la nota nel diario.
+
+    Ogni cliente puo' avere il suo: console (non manda niente), email, o
+    WhatsApp col proprio numero. La nota dice quale si sta usando, cosi' nel
+    diario si vede subito se un cliente sta ancora girando a vuoto.
+    """
+    canale, nota = scegli_canale(cliente)
+    passo(lead_id, "canale", nota, cliente=cliente.slug)
+    return canale
 
 
 def _automatico(cliente, lead_id, lead, qual):
@@ -190,12 +215,19 @@ def _automatico(cliente, lead_id, lead, qual):
             return _handoff(cliente, lead_id, qual,
                             u"agenda piena con urgenza %s" % qual["urgenza"])
 
-    invio = _canale(cliente).invia(
-        lead.get("telefono") or lead.get("email") or str(lead_id), testo)
+    invio = _canale(cliente, lead_id).invia(_recapito(cliente, lead, lead_id), testo)
     passo(lead_id, "risposta inviata",
           u"canale={} ok={} simulato={}".format(invio["canale"], invio["ok"],
                                                 invio["simulato"]),
           cliente=cliente.slug)
+    if not invio["ok"]:
+        # Non siamo riusciti a parlargli. Un paziente che non riceve niente e'
+        # un paziente perso: lo prende una persona, e sa perche'.
+        passo(lead_id, "risposta NON inviata", invio.get("errore") or "",
+              "ERROR", cliente=cliente.slug)
+        return _handoff(cliente, lead_id, qual,
+                        u"la risposta non e' partita (%s): richiamare a mano"
+                        % (invio.get("errore") or invio["canale"]))
     db.aggiungi_messaggio(lead_id, "assistant", testo,
                           json.dumps(qual, ensure_ascii=False))
 
