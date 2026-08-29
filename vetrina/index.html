@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{titolo_pagina}}</title>
+<title>Il paziente scrive alle 21:47 — risposta automatica ai lead</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,700&family=Karla:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -183,9 +183,9 @@ footer{padding:34px 0;text-align:center;color:var(--fumo);font-size:13px;
   <div class="involucro">
     <div class="griglia-eroe">
       <div>
-        <span class="occhiello">{{occhiello}}</span>
-        <h1>{{eroe_titolo}}</h1>
-        <p class="sotto">{{eroe_testo}}</p>
+        <span class="occhiello">Studi dentistici</span>
+        <h1>Il paziente scrive alle 21:47.<br>Tu <em>apri domani</em>.</h1>
+        <p class="sotto">Chi ha mal di denti la sera non aspetta il mattino: scrive a te, e mentre non rispondi scrive anche a un altro. Questo sistema risponde subito, capisce cosa serve e propone un posto in agenda — e quando il caso è serio chiama te, invece di improvvisare.</p>
       </div>
 
       <div>
@@ -193,7 +193,7 @@ footer{padding:34px 0;text-align:center;color:var(--fumo);font-size:13px;
           <div class="alone"></div>
           <div class="dentro-quadrante">
             <div class="ora-grande mono" id="orologio">21:47</div>
-            <div class="stato-studio" id="statoStudio">{{stato_chiuso}}</div>
+            <div class="stato-studio" id="statoStudio">studio chiuso</div>
           </div>
         </div>
         <div class="chat" id="chat"></div>
@@ -207,13 +207,13 @@ footer{padding:34px 0;text-align:center;color:var(--fumo);font-size:13px;
   <div class="involucro rivela">
     <span class="occhiello">Il conto delle ore</span>
     <h2 style="font-size:clamp(28px,4vw,40px);max-width:16em">
-      {{settimana_titolo}}</h2>
+      Una settimana ha 168 ore. La reception ne copre 40.</h2>
     <div class="barra">
       <div class="pezzo aperto"><span>40 ore<br>c’è qualcuno</span></div>
       <div class="pezzo chiuso"><span>128 ore &mdash; sere, notti, weekend, pranzi, ferie</span></div>
     </div>
     <div class="legenda">
-      <span><b>76%</b> {{settimana_nota}}</span>
+      <span><b>76%</b> del tempo lo studio non risponde</span>
       <span>Le richieste, però, arrivano anche lì</span>
     </div>
   </div>
@@ -230,7 +230,7 @@ footer{padding:34px 0;text-align:center;color:var(--fumo);font-size:13px;
         <p>Dal modulo del sito, da una campagna o da un messaggio. Entra con il
            nome del tuo studio addosso.</p><div class="freccia"></div></div>
       <div class="passo"><div class="t">02</div><h3>Capisce</h3>
-        <p>{{passo2}}</p><div class="freccia"></div></div>
+        <p>Che trattamento serve, quanto è urgente, quando preferisce venire. Conosce i tuoi orari e i tuoi trattamenti, non quelli di un altro.</p><div class="freccia"></div></div>
       <div class="passo"><div class="t">03</div><h3>Propone</h3>
         <p>Cerca un posto libero nella tua agenda, lo riserva e risponde al
            paziente in italiano, con il tuo tono.</p><div class="freccia"></div></div>
@@ -246,13 +246,13 @@ footer{padding:34px 0;text-align:center;color:var(--fumo);font-size:13px;
   <div class="involucro rivela">
     <span class="occhiello" style="color:var(--corallo)">La regola che conta</span>
     <h2 style="font-size:clamp(28px,4vw,40px);max-width:15em">
-      {{fermata_titolo}}</h2>
+      Davanti a un sintomo, il sistema si ferma e chiama una persona.</h2>
     <div class="cartello">
-      <p>{{fermata_testo}}</p>
+      <p>Nessuna diagnosi, nessun consiglio clinico, nessun prezzo inventato. Un paziente con dolore o gonfiore non viene gestito da un programma: finisce in cima alla lista di chi deve essere richiamato subito.</p>
     </div>
     <ul class="regole">
-      <li><span class="pallino"></span> {{regola1}} &rarr; <b style="margin-left:4px">a te, priorità 1</b></li>
-      <li><span class="pallino"></span> {{regola2}} &rarr; <b style="margin-left:4px">a te</b></li>
+      <li><span class="pallino"></span> Dolore, gonfiore, trauma, ascesso &rarr; <b style="margin-left:4px">a te, priorità 1</b></li>
+      <li><span class="pallino"></span> Impianti, ortodonzia, protesi &rarr; <b style="margin-left:4px">a te</b></li>
       <li><span class="pallino"></span> «Vorrei parlare con qualcuno» &rarr; <b style="margin-left:4px">a te</b></li>
       <li><span class="pallino"></span> Il sistema è in dubbio, o si guasta &rarr; <b style="margin-left:4px">a te</b></li>
     </ul>
@@ -267,7 +267,7 @@ footer{padding:34px 0;text-align:center;color:var(--fumo);font-size:13px;
   <div class="involucro rivela">
     <span class="occhiello">Fatti il conto con i tuoi numeri</span>
     <h2 style="font-size:clamp(28px,4vw,40px);max-width:15em">
-      {{conto_titolo}}</h2>
+      Quanto vale una richiesta a cui nessuno risponde?</h2>
 
     <div class="calcolatore">
       <div>
@@ -287,9 +287,9 @@ footer{padding:34px 0;text-align:center;color:var(--fumo);font-size:13px;
           <div class="valore mono" id="vChiusura">25%</div>
         </div>
         <div class="campo">
-          <label for="sValore">{{conto_valore_label}}</label>
-          <input type="range" id="sValore" min="100" max="{{conto_valore_max}}" step="{{conto_valore_passo}}" value="{{conto_valore}}">
-          <div class="valore mono" id="vValore">{{conto_valore}} &euro;</div>
+          <label for="sValore">Quanto vale in media un paziente nuovo</label>
+          <input type="range" id="sValore" min="100" max="3000" step="50" value="600">
+          <div class="valore mono" id="vValore">600 &euro;</div>
         </div>
       </div>
 
@@ -325,7 +325,7 @@ footer{padding:34px 0;text-align:center;color:var(--fumo);font-size:13px;
           <li><b>Prenota</b> un posto nella tua agenda</li>
           <li><b>Scrive sul tuo CRM</b> contatto e trattativa</li>
           <li><b>Passa a te</b> urgenze e lavori importanti</li>
-          <li><b>{{isolamento}}</b>: ognuna vede solo i suoi</li>
+          <li><b>Tiene separati gli studi</b>: ognuna vede solo i suoi</li>
           <li><b>Cancella un paziente</b> quando lo chiede, davvero</li>
         </ul>
       </div>
@@ -349,9 +349,9 @@ footer{padding:34px 0;text-align:center;color:var(--fumo);font-size:13px;
     <h2 style="font-size:clamp(30px,5vw,46px);max-width:13em;margin-inline:auto">
       Vuoi vederlo rispondere a un paziente vero?</h2>
     <p class="sotto" style="margin-inline:auto;text-align:center">
-      Il cruscotto è acceso qui accanto: scrivi un messaggio come lo scriverebbe
-      un paziente e guarda cosa succede, in diretta.</p>
-    <a class="bottone" href="/">Apri il cruscotto</a>
+      Questa pagina racconta. Il cruscotto, invece, si guarda insieme: si scrive
+      un messaggio come lo scriverebbe un paziente e si vede cosa succede, in
+      diretta &mdash; la prenotazione che va da sola, l'urgenza che si ferma.</p>
     <a class="secondario" href="#top">Torna su</a>
   </div>
   <footer>Le richieste dei pazienti sono dati di salute: restano sul tuo sistema,
@@ -368,7 +368,7 @@ footer{padding:34px 0;text-align:center;color:var(--fumo);font-size:13px;
     var h = Math.floor(minuti/60), m = minuti % 60;
     el.textContent = String(h).padStart(2,"0") + ":" + String(m).padStart(2,"0");
     var aperto = (h >= 9 && h < 19);
-    stato.textContent = aperto ? "{{stato_aperto}}" : "{{stato_chiuso}}";
+    stato.textContent = aperto ? "studio aperto" : "studio chiuso";
     stato.style.color = aperto ? "var(--menta)" : "var(--corallo)";
   }, 900);
 })();
@@ -377,9 +377,9 @@ footer{padding:34px 0;text-align:center;color:var(--fumo);font-size:13px;
 (function(){
   var chat = document.getElementById("chat");
   var copione = [
-    {chi:"{{chat_nome}}, 21:47", testo:"{{chat_1}}", lato:"paziente"},
-    {chi:"Il sistema, 21:47", testo:"{{chat_2}}", lato:"studio"},
-    {chi:"{{chat_luogo}}", testo:"{{chat_3}}", lato:"paziente"}
+    {chi:"Elena, 21:47", testo:"Buonasera, si è staccato un pezzo di dente mentre mangiavo. Fa un po’ male. Riuscite a vedermi presto?", lato:"paziente"},
+    {chi:"Il sistema, 21:47", testo:"Mi dispiace, Elena. Un dente scheggiato che fa male lo facciamo guardare da un nostro dentista: la sto passando a una persona dello studio, che la richiama appena apriamo.", lato:"studio"},
+    {chi:"In studio, ore 8:31", testo:"Elena è la prima della lista, con la nota: dente scheggiato, dolore. Nessuno ha dovuto stare sveglio.", lato:"paziente"}
   ];
   var i = 0;
 

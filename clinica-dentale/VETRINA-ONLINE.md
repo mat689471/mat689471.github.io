@@ -31,6 +31,56 @@ ferma — solo che non esce niente e non si paga niente.
 
 ---
 
+## La strada più corta: GitHub Pages, sul tuo indirizzo
+
+**Questa batte Render per la vetrina, e va usata per prima.** La pagina non ha
+bisogno di un server: orologio, conversazione e calcolo del mancato guadagno
+girano tutti nel browser di chi guarda. L'unica cosa che faceva Python era
+riempire i testi del settore, e quello si fa una volta sola prima di
+pubblicare.
+
+```
+cd clinica-dentale
+python costruisci_vetrina.py
+```
+
+Escono due file nella cartella `vetrina/`:
+
+| File | A chi lo mandi |
+|---|---|
+| `vetrina/index.html` | studi dentistici |
+| `vetrina/estetica.html` | cliniche di medicina estetica, e le agenzie che le seguono |
+
+Sono già nel repository. Per accenderli:
+
+1. su GitHub, **Settings → Pages**
+2. *Source*: **Deploy from a branch**
+3. *Branch*: il ramo su cui stai lavorando, cartella **`/ (root)`** → **Save**
+
+Dopo un paio di minuti gli indirizzi sono:
+
+```
+https://mat689471.github.io/vetrina/
+https://mat689471.github.io/vetrina/estetica.html
+```
+
+**Perché è meglio di Render per la vetrina:** è gratis davvero, **non si
+addormenta** (niente attesa di un minuto per chi apre il link a mezzanotte), e
+l'indirizzo è il tuo, non quello di un servizio terzo. In un'email a
+un'azienda quella differenza si nota.
+
+Il file `.nojekyll` nella radice serve a dire a GitHub di pubblicare le pagine
+come stanno, senza passarle da Jekyll.
+
+**Cosa NON entra in questa strada:** il cruscotto. Quello mostra pazienti e ha
+bisogno del database, quindi resta una cosa da far vedere in diretta durante
+una call, col sistema acceso sul tuo computer — oppure online con Render,
+quando arriva il primo cliente che paga.
+
+---
+
+## L'altra strada: Render (serve solo se vuoi anche il cruscotto online)
+
 ## Passo per passo
 
 ### 1. Metti la cartella su GitHub
