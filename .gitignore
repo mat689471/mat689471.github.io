@@ -5,3 +5,10 @@ __pycache__/
 memoria/
 skills/
 agent_log.txt
+
+# I documenti commerciali NON entrano qui dentro.
+# Questo repository e' pubblico: serve a pubblicare la vetrina su GitHub
+# Pages, quindi chiunque puo' leggerlo. L'analisi delle aziende da
+# contattare, i margini e le bozze delle email non vanno mostrati a un
+# potenziale cliente che cerca il tuo nome. Restano sul tuo computer.
+ricerca-clienti/
