@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Il paziente scrive alle 21:47 — risposta automatica ai lead</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,700&family=Karla:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ---------------------------------------------------------------------------
+   La pagina attraversa una notte.
+   Comincia alle 21:47, con lo studio chiuso e il telefono che non squilla,
+   e finisce di mattina con l'agenda gia' piena. Il colore lo racconta:
+   si parte dal blu notte e si arriva alla porcellana.
+--------------------------------------------------------------------------- */
+:root{
+  --notte:#0a1f2b;        /* lo studio chiuso, alle dieci di sera */
+  --notte-alta:#12313f;
+  --porcellana:#f3efe7;   /* lo smalto, la sala d'attesa di giorno */
+  --inchiostro:#132029;
+  --menta:#3fbfa8;        /* il sistema che lavora */
+  --ambra:#e0a13c;        /* qualcosa da guardare */
+  --corallo:#e5544b;      /* l'urgenza: qui si ferma tutto */
+  --fumo:#8ea6b3;
+  --bordo:rgba(255,255,255,.10);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--notte);color:var(--porcellana);
+  font-family:Karla,"Segoe UI",system-ui,sans-serif;font-size:17px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+h1,h2,h3{font-family:Fraunces,Georgia,serif;font-weight:500;letter-spacing:-.02em;line-height:1.1;margin:0}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.involucro{max-width:1060px;margin:0 auto;padding:0 24px}
+section{padding:96px 0;position:relative}
+.occhiello{font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--menta);margin-bottom:18px;display:block}
+
+/* --- la notte: il momento in cui si perde un paziente --------------------- */
+.notte{background:
+  radial-gradient(120% 90% at 78% 8%,rgba(63,191,168,.13),transparent 60%),
+  linear-gradient(180deg,#081a24 0%,var(--notte) 55%,var(--notte-alta) 100%);
+  padding-top:70px;overflow:hidden}
+.griglia-eroe{display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:center}
+h1{font-size:clamp(38px,6vw,68px)}
+h1 em{font-style:normal;color:var(--menta)}
+.sotto{color:var(--fumo);font-size:19px;max-width:29em;margin-top:22px}
+
+/* l'orologio: la cosa piu' vera dello studio e' l'orario */
+.quadrante{position:relative;width:min(100%,360px);margin-inline:auto;aspect-ratio:1;
+  border-radius:50%;border:1px solid var(--bordo);
+  background:radial-gradient(circle at 50% 42%,rgba(63,191,168,.10),transparent 62%);
+  display:grid;place-items:center}
+.quadrante::before{content:"";position:absolute;inset:16px;border-radius:50%;
+  border:1px dashed rgba(255,255,255,.09)}
+.alone{position:absolute;inset:-6%;border-radius:50%;border:1px solid rgba(63,191,168,.30);
+  animation:respiro 4.5s ease-in-out infinite}
+@keyframes respiro{0%,100%{transform:scale(1);opacity:.55}50%{transform:scale(1.045);opacity:.12}}
+.ora-grande{font-family:"IBM Plex Mono",monospace;font-size:clamp(46px,9vw,62px);
+  font-weight:500;letter-spacing:-.02em;line-height:1}
+.stato-studio{margin-top:10px;font-size:13px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--corallo);font-family:"IBM Plex Mono",monospace}
+.dentro-quadrante{text-align:center;z-index:2}
+
+/* la conversazione che si scrive da sola */
+.chat{margin-top:26px;display:flex;flex-direction:column;gap:10px;min-height:186px}
+.bolla{max-width:88%;padding:12px 16px;border-radius:16px;font-size:15px;line-height:1.5;
+  opacity:0;transform:translateY(10px);animation:sale .5s ease forwards}
+@keyframes sale{to{opacity:1;transform:none}}
+.b-paziente{background:#16333f;border:1px solid var(--bordo);border-bottom-left-radius:5px}
+.b-studio{background:var(--menta);color:#06231e;align-self:flex-end;
+  border-bottom-right-radius:5px;font-weight:500}
+.b-studio .chi{color:#0b4a41}
+.chi{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--fumo);
+  margin-bottom:5px;font-family:"IBM Plex Mono",monospace}
+.scrive span{display:inline-block;width:6px;height:6px;margin-right:3px;border-radius:50%;
+  background:var(--fumo);animation:puntino 1.2s infinite}
+.scrive span:nth-child(2){animation-delay:.2s}.scrive span:nth-child(3){animation-delay:.4s}
+@keyframes puntino{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+
+/* --- la settimana: 168 ore, e quante ne copre una persona ----------------- */
+.settimana{background:var(--notte-alta)}
+.barra{display:flex;height:76px;border-radius:12px;overflow:hidden;border:1px solid var(--bordo);
+  margin-top:32px}
+.pezzo{display:grid;place-items:center;font-family:"IBM Plex Mono",monospace;font-size:13px;
+  padding:0 10px;text-align:center;width:0;animation:apri 1.4s cubic-bezier(.22,1,.36,1) forwards}
+@keyframes apri{to{width:var(--w)}}
+.aperto{background:var(--porcellana);color:var(--inchiostro);--w:24%}
+.chiuso{background:repeating-linear-gradient(45deg,#0d2532,#0d2532 9px,#112c3a 9px,#112c3a 18px);
+  color:var(--fumo);--w:76%;animation-delay:.35s}
+.legenda{display:flex;gap:26px;flex-wrap:wrap;margin-top:18px;font-size:14px;color:var(--fumo)}
+.legenda b{color:var(--porcellana);font-weight:500}
+
+/* --- il giorno: come funziona --------------------------------------------- */
+.giorno{background:var(--porcellana);color:var(--inchiostro)}
+.giorno .occhiello{color:#1c7d6d}
+.giorno h2{color:var(--inchiostro)}
+.passi{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:44px}
+.passo{background:#fff;border:1px solid #e2ddd2;border-radius:14px;padding:22px 20px;
+  position:relative;opacity:0;transform:translateY(18px)}
+.passo.visto{animation:sale .6s ease forwards}
+.passo .t{font-family:"IBM Plex Mono",monospace;font-size:12px;color:#1c7d6d;letter-spacing:.1em}
+.passo h3{font-size:19px;margin:10px 0 8px}
+.passo p{margin:0;font-size:15px;color:#55636c;line-height:1.55}
+.freccia{position:absolute;right:-13px;top:50%;width:14px;height:1px;background:#cfc8ba}
+.passo:last-child .freccia{display:none}
+
+/* --- l'urgenza: dove il sistema si ferma ---------------------------------- */
+.fermata{background:var(--inchiostro);border-top:1px solid rgba(229,84,75,.35)}
+.cartello{border-left:3px solid var(--corallo);padding:26px 30px;background:rgba(229,84,75,.07);
+  border-radius:0 14px 14px 0;margin-top:30px}
+.cartello p{margin:0;font-size:19px;line-height:1.55}
+.regole{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:26px;list-style:none;padding:0}
+.regole li{padding:13px 16px;background:rgba(255,255,255,.03);border:1px solid var(--bordo);
+  border-radius:10px;font-size:15px;display:flex;gap:12px;align-items:center}
+.pallino{width:9px;height:9px;border-radius:50%;background:var(--corallo);flex:none;
+  box-shadow:0 0 0 0 rgba(229,84,75,.55);animation:battito 2s infinite}
+@keyframes battito{70%{box-shadow:0 0 0 11px rgba(229,84,75,0)}100%{box-shadow:0 0 0 0 rgba(229,84,75,0)}}
+
+/* --- il conto: con i numeri dello studio, non i miei ---------------------- */
+.conto{background:var(--notte-alta)}
+.calcolatore{background:rgba(255,255,255,.035);border:1px solid var(--bordo);border-radius:16px;
+  padding:30px;margin-top:32px;display:grid;grid-template-columns:1.15fr .85fr;gap:34px}
+.campo{margin-bottom:22px}
+.campo label{display:block;font-size:14px;color:var(--fumo);margin-bottom:9px}
+.campo input[type=range]{width:100%;accent-color:var(--menta)}
+.valore{font-family:"IBM Plex Mono",monospace;font-size:21px;color:var(--porcellana)}
+.risultato{border-left:1px solid var(--bordo);padding-left:30px;display:flex;
+  flex-direction:column;justify-content:center}
+.cifra{font-family:Fraunces,serif;font-size:clamp(38px,7vw,54px);color:var(--menta);line-height:1}
+.didascalia{color:var(--fumo);font-size:14px;margin-top:12px}
+.nota-onesta{margin-top:22px;font-size:13px;color:var(--fumo);border-top:1px solid var(--bordo);
+  padding-top:16px;line-height:1.6}
+
+/* --- confini: cosa fa e cosa no ------------------------------------------- */
+.confini{background:var(--notte)}
+.due{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:32px}
+.colonna{border:1px solid var(--bordo);border-radius:14px;padding:24px 26px;
+  background:rgba(255,255,255,.02)}
+.colonna h3{font-size:17px;margin-bottom:16px}
+.colonna ul{margin:0;padding-left:0;list-style:none}
+.colonna li{padding:8px 0;font-size:15px;color:var(--fumo);border-bottom:1px solid rgba(255,255,255,.05)}
+.colonna li:last-child{border-bottom:0}
+.colonna li b{color:var(--porcellana);font-weight:500}
+.si h3{color:var(--menta)} .no h3{color:var(--ambra)}
+
+/* --- chiusura ------------------------------------------------------------- */
+.chiusura{background:linear-gradient(180deg,var(--notte) 0%,#081a24 100%);text-align:center}
+.bottone{display:inline-block;margin-top:28px;padding:15px 34px;border-radius:11px;
+  background:var(--menta);color:#06231e;font-weight:700;text-decoration:none;font-size:16px;
+  transition:transform .18s ease,filter .18s ease}
+.bottone:hover{transform:translateY(-2px);filter:brightness(1.07)}
+.secondario{display:inline-block;margin-top:28px;margin-left:12px;padding:15px 28px;
+  border-radius:11px;border:1px solid var(--bordo);color:var(--porcellana);text-decoration:none;font-size:16px}
+footer{padding:34px 0;text-align:center;color:var(--fumo);font-size:13px;
+  border-top:1px solid var(--bordo)}
+
+.rivela{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s ease}
+.rivela.visto{opacity:1;transform:none}
+
+@media(max-width:860px){
+  .griglia-eroe,.calcolatore,.due{grid-template-columns:1fr}
+  .passi{grid-template-columns:1fr 1fr}
+  .regole{grid-template-columns:1fr}
+  .risultato{border-left:0;border-top:1px solid var(--bordo);padding-left:0;padding-top:26px}
+  section{padding:70px 0}
+  .freccia{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .rivela,.passo{opacity:1;transform:none}
+  .aperto{width:24%}.chiuso{width:76%}
+}
+</style>
+</head>
+<body>
+
+<!-- ====================== LA NOTTE ====================== -->
+<section class="notte" id="top">
+  <div class="involucro">
+    <div class="griglia-eroe">
+      <div>
+        <span class="occhiello">Studi dentistici</span>
+        <h1>Il paziente scrive alle 21:47.<br>Tu <em>apri domani</em>.</h1>
+        <p class="sotto">Chi ha mal di denti la sera non aspetta il mattino: scrive a te, e mentre non rispondi scrive anche a un altro. Questo sistema risponde subito, capisce cosa serve e propone un posto in agenda — e quando il caso è serio chiama te, invece di improvvisare.</p>
+      </div>
+
+      <div>
+        <div class="quadrante">
+          <div class="alone"></div>
+          <div class="dentro-quadrante">
+            <div class="ora-grande mono" id="orologio">21:47</div>
+            <div class="stato-studio" id="statoStudio">studio chiuso</div>
+          </div>
+        </div>
+        <div class="chat" id="chat"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== LA SETTIMANA ====================== -->
+<section class="settimana">
+  <div class="involucro rivela">
+    <span class="occhiello">Il conto delle ore</span>
+    <h2 style="font-size:clamp(28px,4vw,40px);max-width:16em">
+      Una settimana ha 168 ore. La reception ne copre 40.</h2>
+    <div class="barra">
+      <div class="pezzo aperto"><span>40 ore<br>c’è qualcuno</span></div>
+      <div class="pezzo chiuso"><span>128 ore &mdash; sere, notti, weekend, pranzi, ferie</span></div>
+    </div>
+    <div class="legenda">
+      <span><b>76%</b> del tempo lo studio non risponde</span>
+      <span>Le richieste, però, arrivano anche lì</span>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== IL GIORNO: COME FUNZIONA ====================== -->
+<section class="giorno">
+  <div class="involucro">
+    <span class="occhiello">Cosa succede, passo per passo</span>
+    <h2 style="font-size:clamp(28px,4vw,40px);max-width:14em">
+      Dal messaggio all'agenda, senza che nessuno stia sveglio.</h2>
+    <div class="passi">
+      <div class="passo"><div class="t">01</div><h3>Arriva</h3>
+        <p>Dal modulo del sito, da una campagna o da un messaggio. Entra con il
+           nome del tuo studio addosso.</p><div class="freccia"></div></div>
+      <div class="passo"><div class="t">02</div><h3>Capisce</h3>
+        <p>Che trattamento serve, quanto è urgente, quando preferisce venire. Conosce i tuoi orari e i tuoi trattamenti, non quelli di un altro.</p><div class="freccia"></div></div>
+      <div class="passo"><div class="t">03</div><h3>Propone</h3>
+        <p>Cerca un posto libero nella tua agenda, lo riserva e risponde al
+           paziente in italiano, con il tuo tono.</p><div class="freccia"></div></div>
+      <div class="passo"><div class="t">04</div><h3>Registra</h3>
+        <p>Contatto e trattativa finiscono sul tuo CRM. Se il CRM non risponde,
+           il paziente resta salvato qui e si sincronizza dopo.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== DOVE SI FERMA ====================== -->
+<section class="fermata">
+  <div class="involucro rivela">
+    <span class="occhiello" style="color:var(--corallo)">La regola che conta</span>
+    <h2 style="font-size:clamp(28px,4vw,40px);max-width:15em">
+      Davanti a un sintomo, il sistema si ferma e chiama una persona.</h2>
+    <div class="cartello">
+      <p>Nessuna diagnosi, nessun consiglio clinico, nessun prezzo inventato. Un paziente con dolore o gonfiore non viene gestito da un programma: finisce in cima alla lista di chi deve essere richiamato subito.</p>
+    </div>
+    <ul class="regole">
+      <li><span class="pallino"></span> Dolore, gonfiore, trauma, ascesso &rarr; <b style="margin-left:4px">a te, priorità 1</b></li>
+      <li><span class="pallino"></span> Impianti, ortodonzia, protesi &rarr; <b style="margin-left:4px">a te</b></li>
+      <li><span class="pallino"></span> «Vorrei parlare con qualcuno» &rarr; <b style="margin-left:4px">a te</b></li>
+      <li><span class="pallino"></span> Il sistema è in dubbio, o si guasta &rarr; <b style="margin-left:4px">a te</b></li>
+    </ul>
+    <p style="color:var(--fumo);margin-top:22px;font-size:15px">
+      Queste quattro non passano dal modello: sono scritte nel codice, e c’è
+      una prova automatica che le verifica a ogni modifica.</p>
+  </div>
+</section>
+
+<!-- ====================== IL CONTO ====================== -->
+<section class="conto">
+  <div class="involucro rivela">
+    <span class="occhiello">Fatti il conto con i tuoi numeri</span>
+    <h2 style="font-size:clamp(28px,4vw,40px);max-width:15em">
+      Quanto vale una richiesta a cui nessuno risponde?</h2>
+
+    <div class="calcolatore">
+      <div>
+        <div class="campo">
+          <label for="sRichieste">Richieste che arrivano in un mese</label>
+          <input type="range" id="sRichieste" min="10" max="200" step="5" value="60">
+          <div class="valore mono" id="vRichieste">60</div>
+        </div>
+        <div class="campo">
+          <label for="sPerse">Quante arrivano a studio chiuso o restano senza risposta</label>
+          <input type="range" id="sPerse" min="0" max="80" step="5" value="35">
+          <div class="valore mono" id="vPerse">35%</div>
+        </div>
+        <div class="campo">
+          <label for="sChiusura">Di quelle ricontattate subito, quante diventano pazienti</label>
+          <input type="range" id="sChiusura" min="5" max="60" step="5" value="25">
+          <div class="valore mono" id="vChiusura">25%</div>
+        </div>
+        <div class="campo">
+          <label for="sValore">Quanto vale in media un paziente nuovo</label>
+          <input type="range" id="sValore" min="100" max="3000" step="50" value="600">
+          <div class="valore mono" id="vValore">600 &euro;</div>
+        </div>
+      </div>
+
+      <div class="risultato">
+        <div class="cifra mono" id="cifra">&euro; 3.150</div>
+        <div class="didascalia">al mese, dalle richieste che oggi restano
+          senza risposta e che verrebbero ricontattate entro pochi minuti.</div>
+        <div class="cifra mono" style="font-size:22px;margin-top:22px;color:var(--porcellana)"
+             id="cifraAnno">&euro; 37.800 all'anno</div>
+      </div>
+    </div>
+
+    <p class="nota-onesta">
+      I numeri qui sopra sono <b>i tuoi</b>: nessuna percentuale di settore,
+      nessuna promessa. Muovi i cursori con quello che vedi nel tuo studio e
+      guarda cosa viene fuori. Se il risultato è piccolo, questo sistema non
+      ti serve — ed è giusto saperlo prima, non dopo.
+    </p>
+  </div>
+</section>
+
+<!-- ====================== CONFINI ====================== -->
+<section class="confini">
+  <div class="involucro rivela">
+    <span class="occhiello">Senza sorprese</span>
+    <h2 style="font-size:clamp(28px,4vw,40px)">Cosa fa, e cosa non fa.</h2>
+    <div class="due">
+      <div class="colonna si">
+        <h3>Lo fa oggi</h3>
+        <ul>
+          <li><b>Risponde in pochi minuti</b>, a qualsiasi ora</li>
+          <li><b>Capisce</b> trattamento, urgenza e preferenza di orario</li>
+          <li><b>Prenota</b> un posto nella tua agenda</li>
+          <li><b>Scrive sul tuo CRM</b> contatto e trattativa</li>
+          <li><b>Passa a te</b> urgenze e lavori importanti</li>
+          <li><b>Tiene separati gli studi</b>: ognuna vede solo i suoi</li>
+          <li><b>Cancella un paziente</b> quando lo chiede, davvero</li>
+        </ul>
+      </div>
+      <div class="colonna no">
+        <h3>Non lo fa</h3>
+        <ul>
+          <li><b>WhatsApp e SMS</b>: il collegamento è pronto, il numero va attivato</li>
+          <li><b>Telefonate</b>: il sistema scrive, non chiama</li>
+          <li><b>Diagnosi o consigli clinici</b>: mai, per scelta</li>
+          <li><b>Prezzi</b>: si concordano in visita</li>
+          <li><b>Pagamenti</b>: fuori da questo lavoro</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== CHIUSURA ====================== -->
+<section class="chiusura">
+  <div class="involucro rivela">
+    <h2 style="font-size:clamp(30px,5vw,46px);max-width:13em;margin-inline:auto">
+      Vuoi vederlo rispondere a un paziente vero?</h2>
+    <p class="sotto" style="margin-inline:auto;text-align:center">
+      Questa pagina racconta. Il cruscotto, invece, si guarda insieme: si scrive
+      un messaggio come lo scriverebbe un paziente e si vede cosa succede, in
+      diretta &mdash; la prenotazione che va da sola, l'urgenza che si ferma.</p>
+    <a class="secondario" href="#top">Torna su</a>
+  </div>
+  <footer>Le richieste dei pazienti sono dati di salute: restano sul tuo sistema,
+    protette da chiave, e si cancellano su richiesta.</footer>
+</section>
+
+<script>
+/* --- l'orologio che scorre verso l'ora in cui nessuno risponde ----------- */
+(function(){
+  var el = document.getElementById("orologio"), stato = document.getElementById("statoStudio");
+  var minuti = 21*60 + 47;
+  setInterval(function(){
+    minuti = (minuti + 1) % 1440;
+    var h = Math.floor(minuti/60), m = minuti % 60;
+    el.textContent = String(h).padStart(2,"0") + ":" + String(m).padStart(2,"0");
+    var aperto = (h >= 9 && h < 19);
+    stato.textContent = aperto ? "studio aperto" : "studio chiuso";
+    stato.style.color = aperto ? "var(--menta)" : "var(--corallo)";
+  }, 900);
+})();
+
+/* --- la conversazione che si riscrive in continuazione ------------------- */
+(function(){
+  var chat = document.getElementById("chat");
+  var copione = [
+    {chi:"Elena, 21:47", testo:"Buonasera, si è staccato un pezzo di dente mentre mangiavo. Fa un po’ male. Riuscite a vedermi presto?", lato:"paziente"},
+    {chi:"Il sistema, 21:47", testo:"Mi dispiace, Elena. Un dente scheggiato che fa male lo facciamo guardare da un nostro dentista: la sto passando a una persona dello studio, che la richiama appena apriamo.", lato:"studio"},
+    {chi:"In studio, ore 8:31", testo:"Elena è la prima della lista, con la nota: dente scheggiato, dolore. Nessuno ha dovuto stare sveglio.", lato:"paziente"}
+  ];
+  var i = 0;
+
+  function bolla(v, ritardo){
+    var d = document.createElement("div");
+    d.className = "bolla b-" + v.lato;
+    d.style.animationDelay = ritardo + "ms";
+    d.innerHTML = '<div class="chi">' + v.chi + '</div>' + v.testo;
+    chat.appendChild(d);
+  }
+  function scrive(ritardo){
+    var d = document.createElement("div");
+    d.className = "bolla b-paziente scrive";
+    d.style.animationDelay = ritardo + "ms";
+    d.innerHTML = "<span></span><span></span><span></span>";
+    return d;
+  }
+  function giro(){
+    chat.innerHTML = "";
+    bolla(copione[0], 200);
+    var p = scrive(1400); chat.appendChild(p);
+    setTimeout(function(){ if(p.parentNode) p.remove(); bolla(copione[1], 0); }, 2900);
+    setTimeout(function(){ bolla(copione[2], 0); }, 5600);
+    setTimeout(giro, 11000);
+  }
+  giro();
+})();
+
+/* --- il conto, con i numeri che mette lui -------------------------------- */
+(function(){
+  var s = {r:"sRichieste", p:"sPerse", c:"sChiusura", v:"sValore"};
+  var el = {};
+  for(var k in s) el[k] = document.getElementById(s[k]);
+
+  function euro(n){ return "\u20ac " + Math.round(n).toLocaleString("it-IT"); }
+  function calcola(){
+    var richieste = +el.r.value, perse = +el.p.value/100,
+        chiusura = +el.c.value/100, valore = +el.v.value;
+    document.getElementById("vRichieste").textContent = richieste;
+    document.getElementById("vPerse").textContent = el.p.value + "%";
+    document.getElementById("vChiusura").textContent = el.c.value + "%";
+    document.getElementById("vValore").textContent = (+el.v.value).toLocaleString("it-IT") + " \u20ac";
+    var mese = richieste * perse * chiusura * valore;
+    document.getElementById("cifra").textContent = euro(mese);
+    document.getElementById("cifraAnno").textContent = euro(mese*12) + " all'anno";
+  }
+  for(var k in el) el[k].addEventListener("input", calcola);
+  calcola();
+})();
+
+/* --- comparse allo scorrimento ------------------------------------------ */
+(function(){
+  var occhio = new IntersectionObserver(function(voci){
+    voci.forEach(function(v){
+      if(!v.isIntersecting) return;
+      v.target.classList.add("visto");
+      var passi = v.target.querySelectorAll(".passo");
+      passi.forEach(function(p,i){ p.style.animationDelay = (i*130) + "ms"; p.classList.add("visto"); });
+      occhio.unobserve(v.target);
+    });
+  }, {threshold:.16});
+  document.querySelectorAll(".rivela, .giorno .involucro").forEach(function(e){ occhio.observe(e); });
+})();
+</script>
+</body>
+</html>
